@@ -14,6 +14,7 @@ import { searchEntries } from '@/search/searchEntries';
 import { useTheme } from '@/app/useTheme';
 import { EntryRow } from './EntryRow';
 import { EntryForm } from './EntryForm';
+import { ImportPage } from '@/features/import/ImportPage';
 
 export function VaultPage() {
   const entries = useVaultStore((s) => s.entries);
@@ -25,6 +26,7 @@ export function VaultPage() {
 
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceEntry | undefined>();
 
   const results = useMemo(
@@ -102,8 +104,8 @@ export function VaultPage() {
         <div className="flex gap-3">
           <button
             className="btn btn-outline flex-1 touch-target"
-            disabled
-            title="M2 智慧匯入"
+            onClick={() => setImportOpen(true)}
+            title="智慧匯入"
           >
             <ArrowDownOnSquareIcon className="h-5 w-5" />
             匯入
@@ -122,6 +124,8 @@ export function VaultPage() {
         onSave={saveEntry}
         onDelete={removeEntry}
       />
+
+      <ImportPage open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   );
 }

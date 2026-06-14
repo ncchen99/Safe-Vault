@@ -37,6 +37,7 @@ interface VaultState {
   lock: () => void;
   touch: () => void;
   saveEntry: (entry: ServiceEntry) => Promise<void>;
+  saveMany: (entries: ServiceEntry[]) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
   clearRecoveryCode: () => void;
 }
@@ -125,6 +126,26 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     await putEncryptedEntry(await encryptEntry(enriched, vk));
     const next = entries.filter((e) => e.id !== enriched.id);
     next.unshift(enriched);
+    get().touch();
+    set({ entries: next });
+  },
+
+  saveMany: async (incoming) => {
+    const { vk, entries } = get();
+    if (!vk) throw new Error('金庫未解鎖');
+    const enriched = incoming.map((entry) => ({
+      ...entry,
+      aliases: dedupe([
+        ...entry.aliases,
+        ...deriveAliases(entry.service, entry.url),
+      ]),
+      updatedAt: Date.now(),
+    }));
+    for (const e of enriched) {
+      await putEncryptedEntry(await encryptEntry(e, vk));
+    }
+    const ids = new Set(enriched.map((e) => e.id));
+    const next = [...enriched, ...entries.filter((e) => !ids.has(e.id))];
     get().touch();
     set({ entries: next });
   },

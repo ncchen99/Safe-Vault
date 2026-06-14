@@ -36,7 +36,7 @@ npm run emulators  # Firebase Emulator Suite（M3）
 ## 里程碑
 
 - [x] **M1** 專案骨架 + 本地 MVP：加密儲存、手動條目、別名+模糊搜尋、分割線清單 UI、深淺色、復原碼
-- [ ] **M2** 智慧匯入解析管線（normalization → heuristic → FSM → 確認卡片）
+- [x] **M2** 智慧匯入解析管線（normalization → segment → FSM → 評分 → 逐張確認卡片，全程本機）
 - [ ] **M3** E2EE Firestore 同步 + Security Rules + 忘記主密碼流程
 - [ ] **M4** 語意搜尋（小型 embedding，可選）
 - [ ] **M5** a11y / 效能 / 離線 / 安裝體驗打磨
