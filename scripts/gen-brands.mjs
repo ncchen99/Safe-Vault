@@ -63,7 +63,7 @@ for (const slug of SLUGS) {
     missing.push(slug);
     continue;
   }
-  picked.push({ slug: icon.slug, title: icon.title, path: icon.path });
+  picked.push({ slug: icon.slug, title: icon.title, hex: icon.hex, path: icon.path });
 }
 
 picked.sort((a, b) => a.slug.localeCompare(b.slug));
@@ -71,13 +71,15 @@ picked.sort((a, b) => a.slug.localeCompare(b.slug));
 const header = `/**
  * 自動產生——請勿手動編輯。來源：simple-icons（CC0），由 scripts/gen-brands.mjs 產生。
  * 重新產生：npm run gen:brands
- * 單色 24x24 path；以 currentColor 上色，契合灰階介面。共 ${picked.length} 個。
+ * 24x24 單一 path；hex 為品牌官方色（無 # 前綴）。共 ${picked.length} 個。
  */
 export interface BrandIcon {
   /** simple-icons slug，例如 'facebook' */
   slug: string;
   /** 品牌全名 */
   title: string;
+  /** 品牌官方色（6 碼 hex，無 # 前綴），用於彩色頭像 */
+  hex: string;
   /** 24x24 viewBox 的單一 path data */
   path: string;
 }

@@ -35,11 +35,16 @@ export interface ServiceEntry {
 /** IndexedDB / Firestore 中實際儲存的密文記錄（非敏感） */
 export interface EncryptedEntry {
   id: string;
-  ciphertext: string; // base64
-  iv: string; // base64
+  ciphertext: string; // base64（墓碑記錄為空字串）
+  iv: string; // base64（墓碑記錄為空字串）
   rev: number;
   updatedAt: number;
   conflictOf?: string;
+  /**
+   * 墓碑：true 代表此條目已被刪除。保留一筆刪除標記（而非直接移除），
+   * 才能讓刪除事件跨裝置傳播；否則合併會把「只在本機沒有」誤判為「需從遠端拉回」而復活。
+   */
+  deleted?: boolean;
   /**
    * 本機專用：上次成功與遠端同步時的 rev。用於三方合併偵測「雙方併發修改」。
    * 絕不上傳（remote 序列化時會剝除，且不在 Firestore 欄位白名單內）。

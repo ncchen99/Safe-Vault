@@ -10,6 +10,7 @@ import {
   collection,
   getDocs,
   writeBatch,
+  onSnapshot,
 } from 'firebase/firestore';
 import { getDb } from '@/firebase/app';
 import type { EncryptedEntry } from '@/types/entry';
@@ -33,6 +34,7 @@ function toRemoteEntry(e: EncryptedEntry): Record<string, unknown> {
     updatedAt: e.updatedAt,
   };
   if (e.conflictOf) out.conflictOf = e.conflictOf;
+  if (e.deleted) out.deleted = true; // 墓碑：跨裝置傳播刪除
   return out;
 }
 
@@ -84,6 +86,33 @@ export async function deleteRemoteEntry(
   id: string,
 ): Promise<void> {
   await deleteDoc(doc(getDb(), 'users', uid, 'entries', id));
+}
+
+/**
+ * 即時訂閱遠端條目與 meta 的變更（其他裝置推送時觸發）。
+ * 回呼會帶上 `fromSelf`：本裝置自己尚未確認的寫入（hasPendingWrites）為 true，
+ * 呼叫端可據此略過自己造成的回音、只對「真正來自他處」的變更觸發同步。
+ * 回傳取消訂閱函式。
+ */
+export function subscribeRemote(
+  uid: string,
+  onChange: (info: { fromSelf: boolean; fromCache: boolean }) => void,
+): () => void {
+  const db = getDb();
+  const emit = (meta: { hasPendingWrites: boolean; fromCache: boolean }) =>
+    onChange({ fromSelf: meta.hasPendingWrites, fromCache: meta.fromCache });
+
+  const unsubEntries = onSnapshot(
+    collection(db, 'users', uid, 'entries'),
+    (snap) => emit(snap.metadata),
+  );
+  const unsubMeta = onSnapshot(doc(db, 'users', uid), (snap) =>
+    emit(snap.metadata),
+  );
+  return () => {
+    unsubEntries();
+    unsubMeta();
+  };
 }
 
 export { toRemoteEntry };

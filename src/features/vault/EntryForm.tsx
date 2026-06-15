@@ -7,7 +7,7 @@ import {
   PlusIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
-import type { Credential, CustomField, ServiceEntry } from '@/types/entry';
+import type { CustomField, ServiceEntry } from '@/types/entry';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { canonicalServiceName } from '@/icons/match';
 import { newId } from '@/lib/id';
@@ -20,68 +20,28 @@ interface Props {
   onDelete?: (id: string) => Promise<void>;
 }
 
-function blankCredential(): Credential {
-  return { id: newId(), username: '', password: '', note: '', fields: [] };
-}
-
 export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
+  // 單一帳密：服務名稱 + 一組帳號/密碼/備註 + 自訂欄位。
+  const cred0 = initial?.credentials?.[0];
   const [service, setService] = useState(initial?.service ?? '');
+  const [username, setUsername] = useState(cred0?.username ?? '');
+  const [password, setPassword] = useState(cred0?.password ?? '');
+  const [note, setNote] = useState(cred0?.note ?? '');
+  const [fields, setFields] = useState<CustomField[]>(cred0?.fields ?? []);
   const [url, setUrl] = useState(initial?.url ?? '');
   const [tags, setTags] = useState((initial?.tags ?? []).join(', '));
-  const [creds, setCreds] = useState<Credential[]>(
-    initial?.credentials?.length
-      ? initial.credentials.map((c) => ({ ...c, fields: c.fields ?? [] }))
-      : [blankCredential()],
-  );
-  const [show, setShow] = useState<Record<string, boolean>>({});
-  const [noteOpen, setNoteOpen] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(
-      (initial?.credentials ?? []).map((c) => [c.id, Boolean(c.note)]),
-    ),
-  );
+
+  const [showPw, setShowPw] = useState(false);
+  const [reveal, setReveal] = useState<Record<string, boolean>>({});
+  const [noteOpen, setNoteOpen] = useState(Boolean(cred0?.note));
   const [advOpen, setAdvOpen] = useState(Boolean(initial?.url || initial?.tags?.length));
   const [busy, setBusy] = useState(false);
 
-  function updateCred(id: string, patch: Partial<Credential>) {
-    setCreds((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  function updateField(id: string, patch: Partial<CustomField>) {
+    setFields((fs) => fs.map((f) => (f.id === id ? { ...f, ...patch } : f)));
   }
 
-  function updateField(credId: string, fieldId: string, patch: Partial<CustomField>) {
-    setCreds((cs) =>
-      cs.map((c) =>
-        c.id === credId
-          ? {
-              ...c,
-              fields: (c.fields ?? []).map((f) =>
-                f.id === fieldId ? { ...f, ...patch } : f,
-              ),
-            }
-          : c,
-      ),
-    );
-  }
-
-  function addField(credId: string) {
-    setCreds((cs) =>
-      cs.map((c) =>
-        c.id === credId
-          ? { ...c, fields: [...(c.fields ?? []), { id: newId(), label: '', value: '' }] }
-          : c,
-      ),
-    );
-  }
-
-  function removeField(credId: string, fieldId: string) {
-    setCreds((cs) =>
-      cs.map((c) =>
-        c.id === credId
-          ? { ...c, fields: (c.fields ?? []).filter((f) => f.id !== fieldId) }
-          : c,
-      ),
-    );
-  }
-
-  /** 服務名正規化：FB / 臉書 → Facebook（失焦時套用）。 */
+  /** 服務名正規化：FB / 臉書 / Gmail → Facebook / Google 帳號（失焦時套用）。 */
   function normalizeService() {
     const canon = canonicalServiceName(service);
     if (canon && canon.name !== service.trim()) setService(canon.name);
@@ -93,12 +53,15 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
     setBusy(true);
     const now = Date.now();
 
-    // 服務名正規化 + 保留原輸入為別名（搜尋仍找得到）
     const raw = service.trim();
     const canon = canonicalServiceName(raw);
     const name = canon?.name ?? raw;
     const aliases = [...(initial?.aliases ?? [])];
     if (canon && canon.name !== raw && !aliases.includes(raw)) aliases.push(raw);
+
+    const cleanFields = fields
+      .map((f) => ({ ...f, label: f.label.trim(), value: f.value.trim() }))
+      .filter((f) => f.label || f.value);
 
     const entry: ServiceEntry = {
       id: initial?.id ?? newId(),
@@ -109,18 +72,16 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
         .split(',')
         .map((t) => t.trim())
         .filter(Boolean),
-      credentials: creds
-        .map((c) => ({
-          ...c,
-          username: c.username?.trim() || undefined,
-          password: c.password || undefined,
-          note: c.note?.trim() || undefined,
-          fields: (c.fields ?? [])
-            .map((f) => ({ ...f, label: f.label.trim(), value: f.value.trim() }))
-            .filter((f) => f.label || f.value),
-        }))
-        .map((c) => ({ ...c, fields: c.fields.length ? c.fields : undefined }))
-        .filter((c) => c.username || c.password || c.note || c.fields?.length),
+      credentials: [
+        {
+          id: cred0?.id ?? newId(),
+          username: username.trim() || undefined,
+          password: password || undefined,
+          otp: cred0?.otp,
+          note: note.trim() || undefined,
+          fields: cleanFields.length ? cleanFields : undefined,
+        },
+      ],
       createdAt: initial?.createdAt ?? now,
       updatedAt: now,
     };
@@ -165,164 +126,127 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
             value={service}
             onChange={(e) => setService(e.target.value)}
             onBlur={normalizeService}
-            placeholder="例如 Facebook（可輸入 FB、臉書）"
+            placeholder="例如 Facebook（可輸入 FB、臉書、Gmail）"
             autoFocus
             required
           />
         </label>
 
-        {creds.map((c, i) => (
-          <div key={c.id} className="space-y-2 bg-base-200 p-3">
-            {creds.length > 1 && (
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-base-content/60">
-                  帳密 {i + 1}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs"
-                  onClick={() => setCreds((cs) => cs.filter((x) => x.id !== c.id))}
-                  aria-label="移除這組帳密"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+        <label className="form-control">
+          <span className="label-text mb-1">帳號</span>
+          <input
+            className="input input-bordered touch-target"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="ID / Email / 電話皆可"
+            autoComplete="off"
+          />
+        </label>
 
+        <label className="form-control">
+          <span className="label-text mb-1">密碼</span>
+          <div className="relative">
             <input
-              className="input input-bordered input-sm w-full touch-target"
-              value={c.username ?? ''}
-              onChange={(e) => updateCred(c.id, { username: e.target.value })}
-              placeholder="帳號（ID / Email / 電話皆可）"
+              className="input input-bordered w-full pr-10 touch-target"
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="密碼"
               autoComplete="off"
             />
-            <div className="relative">
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs btn-circle absolute right-1 top-1/2 -translate-y-1/2"
+              onClick={() => setShowPw((v) => !v)}
+              aria-label={showPw ? '隱藏密碼' : '顯示密碼'}
+            >
+              {showPw ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+            </button>
+          </div>
+        </label>
+
+        {/* 自訂欄位：理財密碼 / 卡片密碼 / 電話 / 代號… */}
+        {fields.map((f) => (
+          <div key={f.id} className="flex items-center gap-1.5">
+            <input
+              className="input input-bordered input-sm w-28 flex-none touch-target"
+              value={f.label}
+              onChange={(e) => updateField(f.id, { label: e.target.value })}
+              placeholder="標籤"
+              autoComplete="off"
+            />
+            <div className="relative flex-1">
               <input
-                className="input input-bordered input-sm w-full pr-10 touch-target"
-                type={show[c.id] ? 'text' : 'password'}
-                value={c.password ?? ''}
-                onChange={(e) => updateCred(c.id, { password: e.target.value })}
-                placeholder="密碼"
+                className="input input-bordered input-sm w-full pr-8 touch-target"
+                type={f.secret && !reveal[f.id] ? 'password' : 'text'}
+                value={f.value}
+                onChange={(e) => updateField(f.id, { value: e.target.value })}
+                placeholder="值"
                 autoComplete="off"
               />
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs btn-circle absolute right-1 top-1/2 -translate-y-1/2"
-                onClick={() => setShow((s) => ({ ...s, [c.id]: !s[c.id] }))}
-                aria-label={show[c.id] ? '隱藏密碼' : '顯示密碼'}
-              >
-                {show[c.id] ? (
-                  <EyeSlashIcon className="h-4 w-4" />
-                ) : (
-                  <EyeIcon className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-
-            {/* 自訂欄位：理財密碼 / 卡片密碼 / 電話 / 代號… */}
-            {(c.fields ?? []).map((f) => {
-              const fkey = `${c.id}:${f.id}`;
-              return (
-                <div key={f.id} className="flex items-center gap-1.5">
-                  <input
-                    className="input input-bordered input-sm w-28 flex-none touch-target"
-                    value={f.label}
-                    onChange={(e) => updateField(c.id, f.id, { label: e.target.value })}
-                    placeholder="標籤"
-                    autoComplete="off"
-                  />
-                  <div className="relative flex-1">
-                    <input
-                      className="input input-bordered input-sm w-full pr-8 touch-target"
-                      type={f.secret && !show[fkey] ? 'password' : 'text'}
-                      value={f.value}
-                      onChange={(e) => updateField(c.id, f.id, { value: e.target.value })}
-                      placeholder="值"
-                      autoComplete="off"
-                    />
-                    {f.secret && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs btn-circle absolute right-0.5 top-1/2 -translate-y-1/2"
-                        onClick={() => setShow((s) => ({ ...s, [fkey]: !s[fkey] }))}
-                        aria-label={show[fkey] ? '隱藏' : '顯示'}
-                      >
-                        {show[fkey] ? (
-                          <EyeSlashIcon className="h-4 w-4" />
-                        ) : (
-                          <EyeIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className={`btn btn-ghost btn-xs btn-square touch-target ${
-                      f.secret ? 'text-primary' : 'text-base-content/40'
-                    }`}
-                    onClick={() => updateField(c.id, f.id, { secret: !f.secret })}
-                    aria-label={f.secret ? '取消機密' : '標記為機密'}
-                    title={f.secret ? '機密（遮蔽）' : '一般'}
-                  >
-                    {f.secret ? (
-                      <EyeSlashIcon className="h-4 w-4" />
-                    ) : (
-                      <EyeIcon className="h-4 w-4" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs btn-square touch-target"
-                    onClick={() => removeField(c.id, f.id)}
-                    aria-label="移除此欄位"
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              );
-            })}
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs"
-                onClick={() => addField(c.id)}
-              >
-                <PlusIcon className="h-4 w-4" />
-                自訂欄位
-              </button>
-              {!noteOpen[c.id] && !c.note && (
+              {f.secret && (
                 <button
                   type="button"
-                  className="btn btn-ghost btn-xs"
-                  onClick={() => setNoteOpen((s) => ({ ...s, [c.id]: true }))}
+                  className="btn btn-ghost btn-xs btn-circle absolute right-0.5 top-1/2 -translate-y-1/2"
+                  onClick={() => setReveal((s) => ({ ...s, [f.id]: !s[f.id] }))}
+                  aria-label={reveal[f.id] ? '隱藏' : '顯示'}
                 >
-                  <PlusIcon className="h-4 w-4" />
-                  備註
+                  {reveal[f.id] ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                 </button>
               )}
             </div>
-
-            {(noteOpen[c.id] || c.note) && (
-              <textarea
-                className="textarea textarea-bordered w-full text-sm touch-target"
-                rows={2}
-                value={c.note ?? ''}
-                onChange={(e) => updateCred(c.id, { note: e.target.value })}
-                placeholder="備註（可放較長的復原碼等）"
-              />
-            )}
+            <button
+              type="button"
+              className={`btn btn-ghost btn-xs btn-square touch-target ${
+                f.secret ? 'text-primary' : 'text-base-content/40'
+              }`}
+              onClick={() => updateField(f.id, { secret: !f.secret })}
+              aria-label={f.secret ? '取消機密' : '標記為機密'}
+              title={f.secret ? '機密（遮蔽）' : '一般'}
+            >
+              {f.secret ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs btn-square touch-target"
+              onClick={() => setFields((fs) => fs.filter((x) => x.id !== f.id))}
+              aria-label="移除此欄位"
+            >
+              <TrashIcon className="h-4 w-4" />
+            </button>
           </div>
         ))}
 
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm w-full"
-          onClick={() => setCreds((cs) => [...cs, blankCredential()])}
-        >
-          <PlusIcon className="h-4 w-4" />
-          新增一組帳密
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setFields((fs) => [...fs, { id: newId(), label: '', value: '' }])}
+          >
+            <PlusIcon className="h-4 w-4" />
+            自訂欄位
+          </button>
+          {!noteOpen && !note && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => setNoteOpen(true)}
+            >
+              <PlusIcon className="h-4 w-4" />
+              備註
+            </button>
+          )}
+        </div>
+
+        {(noteOpen || note) && (
+          <textarea
+            className="textarea textarea-bordered w-full text-sm touch-target"
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="備註（可放較長的復原碼等）"
+          />
+        )}
 
         {/* 進階：網址、標籤（預設收合） */}
         <div className="border-t border-base-300 pt-2">

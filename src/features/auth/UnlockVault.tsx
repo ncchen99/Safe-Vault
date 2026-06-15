@@ -1,14 +1,31 @@
 import { useState } from 'react';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
+import { FingerPrintIcon } from '@heroicons/react/24/outline';
 import { useVaultStore } from '@/store/vaultStore';
 import { ForgotPassword } from './ForgotPassword';
 
 export function UnlockVault() {
   const unlock = useVaultStore((s) => s.unlock);
+  const unlockWithPasskey = useVaultStore((s) => s.unlockWithPasskey);
+  const passkeySupported = useVaultStore((s) => s.passkeySupported);
+  const hasPasskey = useVaultStore((s) => s.hasPasskey);
   const error = useVaultStore((s) => s.error);
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
+  const [bioBusy, setBioBusy] = useState(false);
   const [forgotOpen, setForgotOpen] = useState(false);
+
+  const canBio = passkeySupported && hasPasskey;
+
+  async function onBio() {
+    if (bioBusy) return;
+    setBioBusy(true);
+    try {
+      await unlockWithPasskey();
+    } finally {
+      setBioBusy(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,6 +46,27 @@ export function UnlockVault() {
         <h1 className="text-2xl font-bold">解鎖金庫</h1>
         <p className="mt-2 text-sm text-base-content/70">輸入主密碼以解密本機金庫</p>
       </div>
+
+      {canBio && (
+        <div className="mb-4">
+          <button
+            type="button"
+            className="btn btn-primary w-full touch-target"
+            onClick={onBio}
+            disabled={bioBusy}
+          >
+            {bioBusy ? (
+              <span className="loading loading-spinner" />
+            ) : (
+              <>
+                <FingerPrintIcon className="h-5 w-5" />
+                用指紋解鎖
+              </>
+            )}
+          </button>
+          <div className="divider text-xs text-base-content/50">或用主密碼</div>
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-4">
         <label className="form-control">

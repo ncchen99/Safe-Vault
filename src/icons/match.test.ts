@@ -70,4 +70,25 @@ describe('canonicalServiceName（服務名正規化）', () => {
     expect(canonicalServiceName('我的私人筆記XYZ')).toBeNull();
     expect(canonicalServiceName('')).toBeNull();
   });
+
+  it('同帳號群組統一服務名', () => {
+    // Google 家族 → Google 帳號
+    expect(canonicalServiceName('Gmail')?.name).toBe('Google 帳號');
+    expect(canonicalServiceName('Google Drive')?.name).toBe('Google 帳號');
+    expect(canonicalServiceName('Google Photos')?.name).toBe('Google 帳號');
+    // Apple 家族 → Apple ID
+    expect(canonicalServiceName('App Store')?.name).toBe('Apple ID');
+    expect(canonicalServiceName('iCloud')?.name).toBe('Apple ID');
+    // Messenger → Facebook
+    expect(canonicalServiceName('Messenger')?.name).toBe('Facebook');
+  });
+
+  it('Instagram 不併入 Facebook（帳密常不同）', () => {
+    expect(canonicalServiceName('Instagram')?.name).toBe('Instagram');
+  });
+
+  it('群組正規化後的名稱仍對得回品牌 icon', () => {
+    expect(matchBrandSlug(entry({ service: 'Google 帳號' }))).toBe('google');
+    expect(matchBrandSlug(entry({ service: 'Apple ID' }))).toBe('apple');
+  });
 });

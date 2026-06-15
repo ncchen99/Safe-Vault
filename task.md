@@ -128,3 +128,26 @@
 - 2026-06-15 服務 icon（全本機、零網路）：精選 simple-icons 103 個品牌（`scripts/gen-brands.mjs` 產生 → `src/icons/brands.generated.ts`，執行期不依賴 simple-icons）；`src/icons/match.ts` 三層比對（品牌 slug／網域／中文別名 → 在地關鍵字分類 → 概念字典分類），`glyphs.tsx` 以 Heroicons solid 當分類字形（各家網銀→銀行字形）；`ServiceIcon` 取代字母頭貼，單色 currentColor 契合灰階。**刻意不抓遠端 favicon**（會外洩服務清單）。台灣在地：中文行名靠概念字典自動歸類、英文短名（CTBC/E.SUN…）靠在地關鍵字表。+6 測（共 41 通過）。瀏覽器驗證：GitHub/Netflix 顯示品牌標誌、玉山銀行/CTBC 顯示銀行字形、未知服務退回字母；網路面板僅 localhost 與 inline data:（零外部請求）。注意：主 chunk 因內嵌品牌 path 增約 50 kB(gzip)，已納入 PWA precache。`npm run gen:brands` 可重產。
 - 2026-06-15 介面極簡改版（灰階）：DaisyUI 主題改 stone 灰階＋全域直角（rounded 全 0）；按鈕反轉對比（淺色=深灰鈕／深色=淺灰鈕）；底部動作列改為一條橫切兩半（左匯入｜右新增）；空狀態「新增條目」改無邊框；服務頭貼改方形灰階；新增/匯入/檢視在手機改為「整頁」呈現（左上叉叉，非 modal）；PWA 圖示/favicon/theme-color 一併灰階化。順手修正：EntryForm 改為開啟時才掛載，避免重開或切換編輯對象時殘留上一筆欄位值。tsc 乾淨、34/34 測試、build 成功；淺/深兩模式瀏覽器驗證通過、console 乾淨。
 - 2026-06-15 M4 語意搜尋：`semantic.ts` 多語概念字典融合 lexical（網銀≈online banking），零網路/可離線；+5 測。M5 打磨：補齊 PWA 三圖示（maskable-safe）、InstallPrompt、theme-color 一致化、iOS meta。tsc 乾淨、總測試 **34/34 通過**（rules 5 gated/skip）、build 成功（主 chunk 332 kB、Firebase 仍 lazy）。瀏覽器端對端：語意搜尋命中/不誤中、manifest+三圖示 200、SW active。**Firestore rules 測試因本機無 JRE 無法啟動 Emulator**，維持 gated。
+- 2026-06-15 彈性欄位 + 表單/列表/解析改版（Phase 1）：
+  - 資料模型：`Credential` 新增可選 `fields: CustomField[]{label,value,secret?}`（向後相容，密文/同步不受影響）；主帳號統一「帳號」（ID/Email/電話自填）。
+  - 服務名正規化：`canonicalServiceName()`（重用品牌比對）→ FB/臉書 → Facebook，原輸入存入 aliases（搜尋仍命中）。
+  - 表單（`EntryForm`）大改：儲存移到 Header 右上（`<form id>`＋`form=` 連動，避開虛擬鍵盤）；網址/標籤收進「進階」收合；備註改 spoiler 收合；每組帳密可加自訂欄位（標籤＋值＋機密遮蔽切換）。`ResponsiveSheet` 加 `headerAction` 插槽。
+  - 列表（`EntryRow`）：帳號上／密碼（遮蔽）下；點整列＝複製密碼、點箭頭＝檢視/編輯（分離兩鈕）。
+  - 解析升級（`fsm.ts`/`pipeline.ts`/`CandidateCard`）：保留任意標籤欄位（理財密碼/卡片密碼/電話下單密碼/代號…）為自訂機密欄位；支援「標籤獨佔一行、值在下一行」配對與「標籤＋空白＋值」；電話另存為「電話」欄位。`ImportFields` 加 `fields`，`FieldKey` 固定為 6 純量鍵。
+  - 限制：無分隔符的黏連標籤（代號f74…）與無任何標籤的多值區塊屬本質模糊，盡力猜測並標「需確認」，由確認 UI＋彈性欄位保全。
+  - 驗證：tsc 乾淨、**47/47 測試通過**（+6）、瀏覽器手機端對端：FB→Facebook、列表帳密上下排與雙鈕、自訂欄位 round-trip、匯入台新證券/Richart 真實雜亂資料正確拆出各機密欄位；console 乾淨、網路僅 localhost＋inline data:（零外部請求）。clipboard 複製於 headless 預覽因權限受限無法讀回（程式邏輯未變）。
+  - 待辦（Phase 2，未動工）：Passkey（WebAuthn PRF）指紋解鎖——`wrappedVK_byPRF` 第三道包裝、Google 登入＋註冊 Passkey 的免密碼 onboarding、復原碼為備援；PRF 需真機生物辨識，預覽環境無法自動驗證。
+- 2026-06-15 Passkey 指紋解鎖（Phase 2）＋ UI 微調：
+  - Passkey/PRF：新增 `src/crypto/passkey.ts`——WebAuthn PRF extension 取生物辨識綁定秘密 → HKDF → AES-GCM 金鑰 → **額外包裝一份 VK**（與主密碼/復原碼並存）。`enablePasskey(vk)`／`unlockVKWithPasskey()`／`derivePrfKey()`／`isPasskeySupported()`。本機儲存 `VaultMeta.passkey{credentialId,prfSalt,wrappedVK}`（`repo.savePasskey/clearPasskey`，**絕不上傳**）。`vaultStore` 加 `passkeySupported/hasPasskey` 與 `unlockWithPasskey/enablePasskey/disablePasskey`。UI：`UnlockVault` 在已啟用時顯示「用指紋解鎖」；`VaultPage` header 加指紋按鈕（啟用/停用）。零知識不變：PRF 秘密永不離裝置、Google 登入仍無法解密。
+  - **限制**：WebAuthn PRF 需真機平台驗證器（macOS Touch ID + Chrome/Safari）；預覽 headless 無法觸發生物辨識，故僅程式層 + 特性偵測驗證，未做真機指紋端對端。免密碼 onboarding（建庫即註冊 Passkey、復原碼為唯一備援）尚未串：目前 Passkey 為「已解鎖後一鍵啟用」，仍保留主密碼。
+  - UI 微調：① 取消多組帳密——`EntryForm` 改單一帳密扁平版面（移除「帳密一/二」「新增一組帳密」與卡片框），一個帳號＝一個 Row。② 服務名查詢表升級為「同帳號群組」：Gmail/Google Drive/Google Photos/YouTube…→「Google 帳號」；App Store/iCloud/Apple Music→「Apple ID」；Messenger→Facebook；Instagram 維持獨立。群組名仍對得回品牌 icon（加 `appleid→apple` 別名）。
+  - 驗證：tsc 乾淨、**52/52 測試通過**（+5：PRF wrap/unwrap roundtrip 2、群組 3）、瀏覽器手機端對端：新增表單為單一帳密無卡片、Gmail→Google 帳號（Google icon）、指紋按鈕在 header 顯示且特性偵測正確（`PublicKeyCredential` 可用）；console 乾淨。
+
+##  — Onboarding 導覽、彩色 icon、Snackbar、即時/離線自動同步、刪除墓碑
+
+- **首次導覽（Onboarding）**：`src/features/onboarding/Onboarding.tsx` 四張卡片（零知識 / 指紋+Google 跨裝置 / 一鍵匯入 / 新增與搜尋），完成狀態存 localStorage；App 以 `NoVaultFlow` 在建庫前先顯示。
+- **彩色品牌 icon**：`gen-brands.mjs` 加入 `hex`，`brands.generated.ts` 重新產生；`ServiceIcon` 改為品牌色底＋對比自動取白/深 logo（App 圖示風）。
+- **Snackbar 複製回饋**：`store/toastStore.ts` + `components/Snackbar.tsx`；EntryRow 點列複製密碼（已複製密碼），無密碼則複製帳號（已複製帳號），3 秒淡出。
+- **即時 + 離線自動同步**：`sync/bus.ts` 解耦事件匯流排；`remote.ts` `subscribeRemote`（onSnapshot 即時拉取，略過本機回音）；authStore 去抖動同步 + online/visibilitychange 補同步；vaultStore 寫入/解鎖時 emit。
+- **跨裝置刪除**：以墓碑（`EncryptedEntry.deleted`）取代硬刪，避免合併把「本機已刪」誤判為「需從遠端拉回」而復活；`firestore.rules` 白名單加 `deleted`（需 `firebase deploy --only firestore:rules` 才生效）。
+- 驗證：tsc 乾淨、vitest 55 通過（+3 墓碑合併測試）、vite build 成功、瀏覽器手機端驗證（導覽、彩色 icon、Snackbar「已複製密碼」、零外部請求）。

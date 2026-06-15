@@ -5,6 +5,7 @@
 import Dexie, { type EntityTable } from 'dexie';
 import type { EncryptedEntry } from '@/types/entry';
 import type { VaultKeyset } from '@/crypto/vaultSetup';
+import type { PasskeyKeyset } from '@/crypto/passkey';
 
 /** 金庫中繼資料（單列，id 固定為 'self'） */
 export interface VaultMeta extends VaultKeyset {
@@ -12,6 +13,8 @@ export interface VaultMeta extends VaultKeyset {
   vaultRev: number;
   createdAt: number;
   updatedAt: number;
+  /** 本機指紋解鎖（WebAuthn PRF 包裝的 VK）。可選、絕不上傳。 */
+  passkey?: PasskeyKeyset;
 }
 
 const db = new Dexie('safevault') as Dexie & {

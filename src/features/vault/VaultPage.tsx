@@ -6,6 +6,7 @@ import {
   MoonIcon,
   SunIcon,
   ArrowDownOnSquareIcon,
+  FingerPrintIcon,
 } from '@heroicons/react/24/outline';
 import { ShieldCheckIcon } from '@heroicons/react/24/solid';
 import type { ServiceEntry } from '@/types/entry';
@@ -23,12 +24,34 @@ export function VaultPage() {
   const removeEntry = useVaultStore((s) => s.removeEntry);
   const lock = useVaultStore((s) => s.lock);
   const touch = useVaultStore((s) => s.touch);
+  const passkeySupported = useVaultStore((s) => s.passkeySupported);
+  const hasPasskey = useVaultStore((s) => s.hasPasskey);
+  const enablePasskey = useVaultStore((s) => s.enablePasskey);
+  const disablePasskey = useVaultStore((s) => s.disablePasskey);
   const { mode, toggle } = useTheme();
 
   const [query, setQuery] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceEntry | undefined>();
+  const [bioBusy, setBioBusy] = useState(false);
+
+  async function toggleBio() {
+    if (bioBusy) return;
+    setBioBusy(true);
+    try {
+      if (hasPasskey) {
+        if (confirm('要停用指紋解鎖嗎？之後改用主密碼解鎖。')) await disablePasskey();
+      } else {
+        await enablePasskey(); // 觸發系統指紋/Face 註冊
+        alert('已啟用指紋解鎖，下次開啟可用指紋快速解鎖。');
+      }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '指紋設定失敗');
+    } finally {
+      setBioBusy(false);
+    }
+  }
 
   const results = useMemo(
     () => searchEntries(query, entries).map((h) => h.entry),
@@ -51,6 +74,23 @@ export function VaultPage() {
         <ShieldCheckIcon className="h-6 w-6 text-primary" />
         <h1 className="flex-1 text-lg font-bold">SafeVault</h1>
         <SyncControls />
+        {passkeySupported && (
+          <button
+            className={`btn btn-ghost btn-sm btn-circle touch-target ${
+              hasPasskey ? 'text-primary' : ''
+            }`}
+            onClick={toggleBio}
+            disabled={bioBusy}
+            aria-label={hasPasskey ? '指紋解鎖已啟用（點擊停用）' : '啟用指紋解鎖'}
+            title={hasPasskey ? '指紋解鎖已啟用' : '啟用指紋解鎖'}
+          >
+            {bioBusy ? (
+              <span className="loading loading-spinner loading-sm" />
+            ) : (
+              <FingerPrintIcon className="h-5 w-5" />
+            )}
+          </button>
+        )}
         <button
           className="btn btn-ghost btn-sm btn-circle touch-target"
           onClick={toggle}
@@ -89,7 +129,11 @@ export function VaultPage() {
       {/* 清單：以分隔線取代卡片（需求 6.2） */}
       <main className="flex-1 pb-28">
         {results.length === 0 ? (
-          <EmptyState hasEntries={entries.length > 0} onAdd={openNew} />
+          <EmptyState
+            hasEntries={entries.length > 0}
+            onAdd={openNew}
+            onImport={() => setImportOpen(true)}
+          />
         ) : (
           <ul className="divide-y divide-base-300">
             {results.map((entry) => (
@@ -142,21 +186,29 @@ export function VaultPage() {
 function EmptyState({
   hasEntries,
   onAdd,
+  onImport,
 }: {
   hasEntries: boolean;
   onAdd: () => void;
+  onImport: () => void;
 }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-20 text-center">
       <ShieldCheckIcon className="mb-4 h-14 w-14 text-base-content/20" />
       <p className="text-base-content/60">
-        {hasEntries ? '找不到符合的條目' : '金庫是空的，新增第一筆密碼吧'}
+        {hasEntries ? '找不到符合的條目' : '金庫是空的，從這裡開始吧'}
       </p>
       {!hasEntries && (
-        <button className="btn btn-ghost mt-4 touch-target" onClick={onAdd}>
-          <PlusIcon className="h-5 w-5" />
-          新增條目
-        </button>
+        <div className="mt-5 flex w-full max-w-xs flex-col gap-2">
+          <button className="btn btn-primary touch-target" onClick={onImport}>
+            <ArrowDownOnSquareIcon className="h-5 w-5" />
+            從文字編輯器一鍵匯入
+          </button>
+          <button className="btn btn-ghost touch-target" onClick={onAdd}>
+            <PlusIcon className="h-5 w-5" />
+            手動新增一筆
+          </button>
+        </div>
       )}
     </div>
   );

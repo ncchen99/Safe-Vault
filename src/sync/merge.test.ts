@@ -75,6 +75,41 @@ describe('mergeEntries', () => {
     expect(loser).toMatchObject({ conflictOf: 'f', ciphertext: 'L', rev: 1 });
     expect(r.toPush.map((e) => e.id).sort()).toEqual(['conflict-1', 'f']);
   });
+
+  it('本機刪除（墓碑）且遠端未變更 → 推送墓碑，遠端據此刪除', () => {
+    const r = mergeEntries(
+      [enc({ id: 'g', rev: 3, baseRev: 2, deleted: true, ciphertext: '', iv: '' })],
+      [enc({ id: 'g', rev: 2, ciphertext: 'live' })],
+      newId,
+    );
+    const pushed = r.toPush.find((e) => e.id === 'g')!;
+    expect(pushed.deleted).toBe(true);
+    expect(r.resolved.find((e) => e.id === 'g')!.deleted).toBe(true);
+  });
+
+  it('遠端刪除（墓碑）且本機未變更 → 本機採用墓碑（條目消失）', () => {
+    const r = mergeEntries(
+      [enc({ id: 'h', rev: 2, baseRev: 2, ciphertext: 'live' })],
+      [enc({ id: 'h', rev: 4, deleted: true, ciphertext: '', iv: '' })],
+      newId,
+    );
+    expect(r.toPush).toHaveLength(0);
+    expect(r.resolved[0]).toMatchObject({ id: 'h', deleted: true });
+  });
+
+  it('一方刪除、另一方併發編輯 → 衝突保留編輯內容，不靜默遺失', () => {
+    counter = 0;
+    const r = mergeEntries(
+      // 本機刪除（較舊）
+      [enc({ id: 'k', rev: 3, baseRev: 2, updatedAt: 2000, deleted: true, ciphertext: '', iv: '' })],
+      // 遠端編輯（較新）→ 勝
+      [enc({ id: 'k', rev: 3, updatedAt: 3000, ciphertext: 'EDIT' })],
+      newId,
+    );
+    const winner = r.resolved.find((e) => e.id === 'k')!;
+    expect(winner.ciphertext).toBe('EDIT');
+    expect(winner.deleted).toBeFalsy();
+  });
 });
 
 describe('mergeMeta', () => {

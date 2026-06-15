@@ -11,16 +11,23 @@ import {
   rekeyVault,
 } from '@/crypto/vaultSetup';
 import { decryptEntry, encryptEntry } from '@/crypto/vault';
-import { deriveAliases } from '@/search/alias';
 import {
+  enablePasskey as cryptoEnablePasskey,
+  isPasskeySupported,
+  unlockVKWithPasskey,
+} from '@/crypto/passkey';
+import { deriveAliases } from '@/search/alias';
+import { syncBus } from '@/sync/bus';
+import {
+  clearPasskey,
   deleteEntry as dbDelete,
   getEncryptedEntry,
   getMeta,
-  hasVault,
-  listEncryptedEntries,
+  listLiveEntries,
   putEncryptedEntry,
   replaceMeta,
   saveMeta,
+  savePasskey,
 } from '@/db/repo';
 import type { SyncOutcome } from '@/sync/sync';
 
@@ -35,10 +42,17 @@ interface VaultState {
   vk: CryptoKey | null;
   lastRecoveryCode: string | null; // 一次性顯示後即清除
   autoLockTimer: ReturnType<typeof setTimeout> | null;
+  /** 此環境是否支援 Passkey（WebAuthn）。 */
+  passkeySupported: boolean;
+  /** 本機是否已啟用指紋解鎖。 */
+  hasPasskey: boolean;
 
   init: () => Promise<void>;
   create: (masterPassword: string) => Promise<void>;
   unlock: (masterPassword: string) => Promise<void>;
+  unlockWithPasskey: () => Promise<void>;
+  enablePasskey: () => Promise<void>;
+  disablePasskey: () => Promise<void>;
   lock: () => void;
   touch: () => void;
   saveEntry: (entry: ServiceEntry) => Promise<void>;
@@ -59,9 +73,15 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   vk: null,
   lastRecoveryCode: null,
   autoLockTimer: null,
+  passkeySupported: isPasskeySupported(),
+  hasPasskey: false,
 
   init: async () => {
-    set({ status: (await hasVault()) ? 'locked' : 'no-vault' });
+    const meta = await getMeta();
+    set({
+      status: meta ? 'locked' : 'no-vault',
+      hasPasskey: Boolean(meta?.passkey),
+    });
   },
 
   create: async (masterPassword) => {
@@ -91,16 +111,55 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     }
     try {
       const vk = await unlockWithMasterPassword(masterPassword, meta);
-      const encrypted = await listEncryptedEntries();
+      const encrypted = await listLiveEntries();
       const entries = await Promise.all(
         encrypted.map((rec) => decryptEntry(rec, vk)),
       );
       get().touch();
       set({ vk, entries, status: 'unlocked' });
+      syncBus.emitLocalChange(); // 解鎖後若已登入則拉取遠端 + 啟動即時同步
     } catch {
       // AES-GCM 驗證失敗 → 主密碼錯誤
       set({ error: '主密碼錯誤，請再試一次' });
     }
+  },
+
+  /** 指紋解鎖：以 Passkey（PRF）解出 VK，等同主密碼解鎖但用生物辨識。 */
+  unlockWithPasskey: async () => {
+    set({ error: null });
+    const meta = await getMeta();
+    if (!meta?.passkey) {
+      set({ error: '尚未啟用指紋解鎖' });
+      return;
+    }
+    try {
+      const vk = await unlockVKWithPasskey(meta.passkey);
+      const encrypted = await listLiveEntries();
+      const entries = await Promise.all(
+        encrypted.map((rec) => decryptEntry(rec, vk)),
+      );
+      get().touch();
+      set({ vk, entries, status: 'unlocked' });
+      syncBus.emitLocalChange();
+    } catch (e) {
+      set({ error: errMsg(e) });
+    }
+  },
+
+  /** 啟用指紋解鎖：用目前記憶體中的 VK，建立 Passkey 並額外包裝一份 VK。 */
+  enablePasskey: async () => {
+    const { vk } = get();
+    if (!vk) throw new Error('金庫未解鎖');
+    set({ error: null });
+    const passkey = await cryptoEnablePasskey(vk);
+    await savePasskey(passkey);
+    set({ hasPasskey: true });
+  },
+
+  /** 停用指紋解鎖：移除本機 PRF 包裝（主密碼/復原碼不受影響）。 */
+  disablePasskey: async () => {
+    await clearPasskey();
+    set({ hasPasskey: false });
   },
 
   lock: () => {
@@ -142,6 +201,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     next.unshift(enriched);
     get().touch();
     set({ entries: next });
+    syncBus.emitLocalChange();
   },
 
   saveMany: async (incoming) => {
@@ -165,11 +225,13 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const next = [...enriched, ...entries.filter((e) => !ids.has(e.id))];
     get().touch();
     set({ entries: next });
+    syncBus.emitLocalChange();
   },
 
   removeEntry: async (id) => {
     await dbDelete(id);
     set({ entries: get().entries.filter((e) => e.id !== id) });
+    syncBus.emitLocalChange();
   },
 
   /**
@@ -200,7 +262,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       vaultRev: meta.vaultRev + 1, // 主密碼變更 → 遞增整體版本
       updatedAt: Date.now(),
     });
-    const encrypted = await listEncryptedEntries();
+    const encrypted = await listLiveEntries();
     const entries = await Promise.all(
       encrypted.map((rec) => decryptEntry(rec, vk)),
     );
@@ -221,7 +283,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const { syncNow } = await import('@/sync/sync');
     const outcome = await syncNow(uid);
     // 同步可能下載/新增了條目或衝突副本 → 重新解密整份
-    const encrypted = await listEncryptedEntries();
+    const encrypted = await listLiveEntries();
     const entries = await Promise.all(
       encrypted.map((rec) => decryptEntry(rec, vk)),
     );

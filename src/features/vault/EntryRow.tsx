@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { ChevronRightIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { ChevronRightIcon } from '@heroicons/react/24/outline';
 import type { ServiceEntry } from '@/types/entry';
 import { ServiceIcon } from '@/components/ServiceIcon';
+import { toast } from '@/store/toastStore';
 
 interface Props {
   entry: ServiceEntry;
@@ -9,29 +9,40 @@ interface Props {
 }
 
 export function EntryRow({ entry, onOpen }: Props) {
-  const [copied, setCopied] = useState(false);
   const primary = entry.credentials[0];
   const usernamePreview = primary?.username;
   const hasPassword = Boolean(primary?.password);
+  const hasUsername = Boolean(primary?.username);
+  // 有密碼 → 複製密碼；否則退而複製帳號（需求 2a/2b）
+  const canCopy = hasPassword || hasUsername;
 
-  async function copyPassword() {
-    if (!primary?.password) return;
-    await navigator.clipboard.writeText(primary.password);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  async function copyPrimary() {
+    const value = primary?.password ?? primary?.username;
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      toast('複製失敗，請手動長按複製', 'error');
+      return;
+    }
+    toast(hasPassword ? '已複製密碼' : '已複製帳號');
     // 安全：30 秒後嘗試清空剪貼簿
     setTimeout(() => navigator.clipboard.writeText('').catch(() => {}), 30000);
   }
 
   return (
     <li className="flex items-center transition-colors hover:bg-base-200">
-      {/* 點整列 → 複製密碼 */}
+      {/* 點整列 → 複製密碼（無密碼則複製帳號） */}
       <button
         type="button"
-        onClick={copyPassword}
-        disabled={!hasPassword}
+        onClick={copyPrimary}
+        disabled={!canCopy}
         className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left touch-target disabled:cursor-default"
-        aria-label={hasPassword ? `複製「${entry.service}」的密碼` : entry.service}
+        aria-label={
+          canCopy
+            ? `複製「${entry.service}」的${hasPassword ? '密碼' : '帳號'}`
+            : entry.service
+        }
       >
         <ServiceIcon entry={entry} />
 
@@ -42,14 +53,7 @@ export function EntryRow({ entry, onOpen }: Props) {
           </div>
           <div className="truncate text-sm text-base-content/40">
             {hasPassword ? (
-              copied ? (
-                <span className="inline-flex items-center gap-1 text-success">
-                  <CheckIcon className="h-4 w-4" />
-                  已複製
-                </span>
-              ) : (
-                <span className="tracking-widest">••••••••</span>
-              )
+              <span className="tracking-widest">••••••••</span>
             ) : (
               '（無密碼）'
             )}

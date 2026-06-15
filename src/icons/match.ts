@@ -42,7 +42,29 @@ const ALIAS: Record<string, string> = {
   trip: 'tripdotcom', 'trip.com': 'tripdotcom',
   // 開發 / 雲端
   gh: 'github',
+  // 讓正規化後的群組名稱仍能對回品牌 icon
+  appleid: 'apple', 蘋果: 'apple', 'apple id': 'apple',
 };
+
+/**
+ * 帳號身分群組：多個品牌/服務共用「同一組帳密」→ 統一服務名。
+ * 例：Gmail / Google Drive / Google Photos 都是同一個 Google 帳號。
+ * Instagram 刻意不併入 Facebook（許多人帳密不同）。
+ */
+const ACCOUNT_GROUPS: { name: string; slugs: string[] }[] = [
+  {
+    name: 'Google 帳號',
+    slugs: [
+      'google', 'gmail', 'googledrive', 'googlephotos', 'googlecalendar',
+      'googlemaps', 'googlepay', 'googlechrome', 'youtube',
+    ],
+  },
+  { name: 'Apple ID', slugs: ['apple', 'appstore', 'applemusic', 'icloud'] },
+  { name: 'Facebook', slugs: ['facebook', 'messenger'] },
+];
+
+const SLUG_TO_GROUP = new Map<string, string>();
+for (const g of ACCOUNT_GROUPS) for (const s of g.slugs) SLUG_TO_GROUP.set(s, g.name);
 
 /** 從 URL 取主網域標籤，例如 https://www.facebook.com/x → 'facebook'。 */
 function domainLabel(url?: string): string | null {
@@ -159,6 +181,9 @@ export function canonicalServiceName(
     updatedAt: 0,
   });
   if (!slug) return null;
+  // 同帳號群組優先（Gmail → Google 帳號、App Store → Apple ID…）
+  const group = SLUG_TO_GROUP.get(slug);
+  if (group) return { name: group, slug };
   const brand = BY_SLUG.get(slug);
   return brand ? { name: brand.title, slug } : null;
 }

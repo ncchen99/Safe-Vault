@@ -20,7 +20,7 @@ service cloud.firestore {
         allow read, delete: if signedInAs(uid);
         allow create, update: if signedInAs(uid)
           && request.resource.data.keys().hasOnly(
-               ['ciphertext', 'iv', 'rev', 'updatedAt', 'conflictOf'])
+               ['ciphertext', 'iv', 'rev', 'updatedAt', 'conflictOf', 'deleted'])
           && request.resource.data.ciphertext is string
           && request.resource.data.iv is string;
       }
