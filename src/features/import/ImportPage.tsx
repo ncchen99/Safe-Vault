@@ -8,6 +8,7 @@ import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { useVaultStore } from '@/store/vaultStore';
 import { parseImport, candidateToEntry } from '@/import/pipeline';
 import type { ImportCandidate, ImportFields } from '@/types/import';
+import type { ServiceEntry } from '@/types/entry';
 import { CandidateCard } from './CandidateCard';
 
 interface Props {
@@ -82,10 +83,23 @@ export function ImportPage({ open, onClose }: Props) {
     if (!selectedCount || busy) return;
     setBusy(true);
     try {
-      const toSave = rows
-        .filter((r) => r.included && r.candidate.fields.service?.trim())
-        .map((r) => candidateToEntry(r.candidate));
-      await saveMany(toSave);
+      // 命中既有條目的候選併入該條目（沿用其 id），而非新建一筆 → 避免重複貼上時
+      // 跨裝置產生兩份。以工作副本累積，讓同一批多筆命中同一條目時依序疊加。
+      const working = new Map(entries.map((e) => [e.id, e]));
+      const toSave: ServiceEntry[] = [];
+      for (const r of rows) {
+        if (!r.included || !r.candidate.fields.service?.trim()) continue;
+        const target = r.candidate.duplicateId
+          ? working.get(r.candidate.duplicateId)
+          : undefined;
+        const merged = candidateToEntry(r.candidate, target);
+        if (!merged) continue; // 完全重複 → 跳過
+        working.set(merged.id, merged);
+        const i = toSave.findIndex((e) => e.id === merged.id);
+        if (i >= 0) toSave[i] = merged;
+        else toSave.push(merged);
+      }
+      if (toSave.length) await saveMany(toSave);
       handleClose();
     } finally {
       setBusy(false);

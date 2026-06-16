@@ -13,8 +13,13 @@ import type { ServiceEntry } from '@/types/entry';
 import { normalize } from '@/search/normalize';
 import { conceptsOfAll } from '@/search/semantic';
 import { BRAND_ICONS } from './brands.generated';
+import { CUSTOM_BRAND_ICONS } from './brands.custom';
 
-const BY_SLUG = new Map(BRAND_ICONS.map((b) => [b.slug, b]));
+// generated（simple-icons）＋ custom（手工補的大廠）合併為單一 registry。
+// custom 放後面，可在需要時覆蓋同名 slug。
+const BY_SLUG = new Map(
+  [...BRAND_ICONS, ...CUSTOM_BRAND_ICONS].map((b) => [b.slug, b]),
+);
 
 /** 取 ascii 精簡鍵（CJK 會被清空，由 ALIAS 處理）。 */
 function asciiKey(s: string): string {
@@ -42,6 +47,14 @@ const ALIAS: Record<string, string> = {
   trip: 'tripdotcom', 'trip.com': 'tripdotcom',
   // 開發 / 雲端
   gh: 'github',
+  // 大廠（simple-icons 已移除，由 brands.custom 補 icon）
+  奧多比: 'adobe', photoshop: 'adobe', lightroom: 'adobe', illustrator: 'adobe',
+  acrobat: 'adobe', 'creative cloud': 'adobe', creativecloud: 'adobe',
+  adobecc: 'adobe', premiere: 'adobe',
+  微軟: 'microsoft', ms: 'microsoft', office: 'microsoft', office365: 'microsoft',
+  microsoft365: 'microsoft', onedrive: 'microsoft', onenote: 'microsoft',
+  teams: 'microsoft', 'microsoft teams': 'microsoft',
+  領英: 'linkedin',
   // 讓正規化後的群組名稱仍能對回品牌 icon
   appleid: 'apple', 蘋果: 'apple', 'apple id': 'apple',
 };

@@ -46,6 +46,11 @@ export interface ImportCandidate {
   rawBlock: string;
   /** 是否建議人工檢視（低品質或缺關鍵欄位） */
   needsReview: boolean;
-  /** 與既有條目疑似重複的 service（提示，不阻擋） */
+  /** 與既有條目疑似重複的 service 名稱（顯示提示用，不阻擋） */
   duplicateOf?: string;
+  /**
+   * 命中的既有條目 id。匯入確認時據此「併入既有條目」而非新建一筆，
+   * 避免重複貼上同份資料時跨裝置產生兩份（合併以 id 配對）。
+   */
+  duplicateId?: string;
 }

@@ -113,11 +113,47 @@ describe('智慧匯入管線', () => {
 
   it('candidateToEntry 產出合法 ServiceEntry', () => {
     const [c] = parseImport(['GitHub', 'octocat', 'C0de-rev1ew!'].join('\n'));
-    const entry = candidateToEntry(c);
+    const entry = candidateToEntry(c)!;
     expect(entry.service).toBe('GitHub');
     expect(entry.credentials).toHaveLength(1);
     expect(entry.credentials[0].password).toBe('C0de-rev1ew!');
     expect(entry.id).toBeTruthy();
+  });
+
+  it('併入既有條目：完全相同帳密 → 回傳 null（不複製）', () => {
+    const existing: ServiceEntry[] = [
+      {
+        id: 'e1',
+        service: 'Facebook',
+        aliases: ['臉書'],
+        tags: [],
+        credentials: [{ id: 'c1', username: 'a@b.com', password: 'Reuse-pw-123!' }],
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ];
+    const [c] = parseImport(['臉書', 'a@b.com', 'Reuse-pw-123!'].join('\n'), existing);
+    expect(c.duplicateId).toBe('e1');
+    expect(candidateToEntry(c, existing[0])).toBeNull();
+  });
+
+  it('併入既有條目：不同帳號 → 沿用既有 id、附加為另一組憑證', () => {
+    const existing: ServiceEntry[] = [
+      {
+        id: 'e1',
+        service: '104人力',
+        aliases: [],
+        tags: [],
+        credentials: [{ id: 'c1', username: 'first@x.com', password: 'pw-one-11!' }],
+        createdAt: 0,
+        updatedAt: 0,
+      },
+    ];
+    const [c] = parseImport(['104人力', 'second@x.com', 'pw-two-22!'].join('\n'), existing);
+    const merged = candidateToEntry(c, existing[0])!;
+    expect(merged.id).toBe('e1'); // 沿用既有 id → 同步不會變兩份
+    expect(merged.credentials).toHaveLength(2);
+    expect(merged.credentials[1].username).toBe('second@x.com');
   });
 });
 
@@ -161,7 +197,7 @@ describe('彈性自訂欄位解析（真實雜亂資料）', () => {
 
   it('candidateToEntry 映射自訂欄位並正規化服務名（FB → Facebook）', () => {
     const [c] = parseImport(['FB', 'me@x.com', 'Passw0rd-9xy', '理財密碼 1234'].join('\n'));
-    const entry = candidateToEntry(c);
+    const entry = candidateToEntry(c)!;
     expect(entry.service).toBe('Facebook');
     expect(entry.aliases).toContain('FB');
     expect(entry.credentials[0].fields?.some((x) => x.label === '理財密碼' && x.value === '1234')).toBe(true);
@@ -307,7 +343,7 @@ describe('純位置序列與弱密碼（服務名↵ID↵密碼）', () => {
 
   it('FB 後綴使用者標記移入備註，服務名只留 Facebook', () => {
     const [c] = parseImport(['Fb黏誠', 'bverbr@slowimo.com', 'brgw34vr'].join('\n'));
-    const entry = candidateToEntry(c);
+    const entry = candidateToEntry(c)!;
     expect(entry.service).toBe('Facebook');
     expect(entry.credentials[0].note).toContain('黏誠');
   });

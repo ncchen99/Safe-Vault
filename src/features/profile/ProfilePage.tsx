@@ -11,6 +11,7 @@ import {
   FingerPrintIcon,
   KeyIcon,
   LockClosedIcon,
+  TrashIcon,
   UserCircleIcon,
 } from '@heroicons/react/24/outline';
 import { useVaultStore } from '@/store/vaultStore';
@@ -29,6 +30,8 @@ export function ProfilePage({ onBack }: Props) {
   const hasMasterPassword = useVaultStore((s) => s.hasMasterPassword);
   const enablePasskey = useVaultStore((s) => s.enablePasskey);
   const disablePasskey = useVaultStore((s) => s.disablePasskey);
+  const entries = useVaultStore((s) => s.entries);
+  const removeEntry = useVaultStore((s) => s.removeEntry);
 
   const enabled = useAuthStore((s) => s.enabled);
   const user = useAuthStore((s) => s.user);
@@ -41,6 +44,7 @@ export function ProfilePage({ onBack }: Props) {
 
   const [bioBusy, setBioBusy] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [wiping, setWiping] = useState(false);
 
   const syncing = syncState === 'syncing';
   const signingIn = syncState === 'signing-in';
@@ -74,6 +78,24 @@ export function ProfilePage({ onBack }: Props) {
   }
 
   const displayName = user?.displayName || user?.email || '本機使用者';
+
+  async function wipeAllEntries() {
+    if (wiping || entries.length === 0) return;
+    const ok = confirm(
+      `確定要刪除全部 ${entries.length} 筆條目嗎？此操作無法復原；其他已同步裝置的資料也會一併刪除。`,
+    );
+    if (!ok) return;
+    setWiping(true);
+    try {
+      for (const e of entries) await removeEntry(e.id);
+      if (enabled && user) await sync(); // 立即推送墓碑，讓其他裝置同步刪除
+      toast('已刪除全部條目');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '刪除失敗', 'error');
+    } finally {
+      setWiping(false);
+    }
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -218,6 +240,30 @@ export function ProfilePage({ onBack }: Props) {
           >
             <LockClosedIcon className="h-5 w-5 flex-none" />
             <span className="font-medium">鎖定金庫</span>
+          </button>
+        </section>
+
+        {/* 危險操作 */}
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-error/80">危險操作</h2>
+          <button
+            className="flex w-full items-center gap-3 border border-error/30 bg-base-100 px-4 py-4 text-left hover:bg-error/10 touch-target disabled:opacity-50"
+            onClick={() => void wipeAllEntries()}
+            disabled={wiping || entries.length === 0}
+          >
+            {wiping ? (
+              <span className="loading loading-spinner loading-sm text-error" />
+            ) : (
+              <TrashIcon className="h-5 w-5 flex-none text-error" />
+            )}
+            <span>
+              <span className="block font-medium text-error">
+                刪除所有條目（{entries.length} 筆）
+              </span>
+              <span className="block text-sm text-base-content/60">
+                清空後可重新匯入；已啟用同步者，其他裝置也會一併清除
+              </span>
+            </span>
           </button>
         </section>
       </div>

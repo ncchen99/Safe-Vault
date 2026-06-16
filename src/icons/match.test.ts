@@ -41,6 +41,19 @@ describe('matchBrandSlug', () => {
   it('找不到品牌時回傳 null', () => {
     expect(matchBrandSlug(entry({ service: '某不知名服務 zxcv' }))).toBeNull();
   });
+
+  it('自建大廠 icon（simple-icons 已移除者）', () => {
+    expect(matchBrandSlug(entry({ service: 'Adobe' }))).toBe('adobe');
+    expect(matchBrandSlug(entry({ service: 'Photoshop' }))).toBe('adobe');
+    expect(matchBrandSlug(entry({ service: 'Microsoft' }))).toBe('microsoft');
+    expect(matchBrandSlug(entry({ service: '微軟' }))).toBe('microsoft');
+    expect(matchBrandSlug(entry({ service: 'LinkedIn' }))).toBe('linkedin');
+    expect(matchBrandSlug(entry({ service: 'Slack' }))).toBe('slack');
+    // 網域也能命中
+    expect(
+      matchBrandSlug(entry({ service: '設計', url: 'https://adobe.com' })),
+    ).toBe('adobe');
+  });
 });
 
 describe('matchConcept（分類字形後援）', () => {
