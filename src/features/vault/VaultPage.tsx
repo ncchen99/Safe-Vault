@@ -100,7 +100,10 @@ export function VaultPage() {
   }
 
   return (
-    <div className="flex min-h-[var(--app-content-height)] flex-col md:flex-row" onClick={touch}>
+    <div
+      className="flex min-h-[var(--app-content-height)] flex-col md:h-[var(--app-content-height)] md:flex-row md:overflow-hidden"
+      onClick={touch}
+    >
       {/* 側邊欄：平板僅 icon 細條，桌面展開為完整側欄 */}
       <DesktopSidebar
         mode={mode}
@@ -111,13 +114,13 @@ export function VaultPage() {
       />
 
       {view === 'profile' ? (
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col md:min-h-0 md:overflow-y-auto">
           <ProfilePage onBack={() => setView('list')} />
         </div>
       ) : (
         <>
           {/* 清單欄：桌面固定較窄寬度，留出右側給明細 */}
-          <div className="flex min-w-0 flex-1 flex-col lg:flex-[3] lg:border-r lg:border-base-300">
+          <div className="flex min-w-0 flex-1 flex-col md:min-h-0 lg:flex-[3] lg:border-r lg:border-base-300">
             {/* 手機頂部列（桌面/平板由側邊欄取代）：左邊 Brand，右邊主題切換與頭像 */}
             <header className="sticky top-0 z-10 flex items-center justify-between border-b border-base-300 bg-base-100/95 px-2 py-2 backdrop-blur md:hidden">
               <div className="flex items-center gap-2 pl-2">
@@ -164,7 +167,8 @@ export function VaultPage() {
             )}
 
             {/* 清單：以分隔線取代卡片，外框與搜尋框等寬 */}
-            <main className="flex-1 px-4 pb-28 pt-4 md:px-6 md:pb-8">
+            {/* 唯一的捲動區：md 以上於此內部捲動，其餘（Brand、側欄、明細外框）固定 */}
+            <main className="flex-1 px-4 pb-28 pt-4 md:min-h-0 md:overflow-y-auto md:px-6 md:pb-8">
               {results.length === 0 ? (
                 <EmptyState
                   hasEntries={entries.length > 0}
@@ -211,7 +215,7 @@ export function VaultPage() {
           </div>
 
           {/* 桌面右側欄：選取項目 → 顯示帳密明細；未選取 → 顯示金庫概況 */}
-          <aside className="sticky top-0 hidden h-[var(--app-content-height)] min-w-0 flex-1 flex-col bg-base-100 lg:flex lg:flex-[2]">
+          <aside className="hidden h-full min-w-0 flex-1 flex-col overflow-hidden bg-base-100 lg:flex lg:flex-[2]">
             {selected ? (
               <EntryDetail
                 key={selected.id}
@@ -261,7 +265,7 @@ function DesktopSidebar({
   onProfile: () => void;
 }) {
   return (
-    <aside className="sticky top-0 hidden h-[var(--app-content-height)] flex-none flex-col border-r border-base-300 bg-base-100 py-6 md:flex md:w-16 md:px-2 lg:w-64 lg:px-4">
+    <aside className="hidden h-full flex-none flex-col overflow-hidden border-r border-base-300 bg-base-100 py-6 md:flex md:w-16 md:px-2 lg:w-64 lg:px-4">
       <div className="mb-8 flex items-center gap-2 md:justify-center lg:justify-start lg:px-2">
         <ShieldCheckIcon className="h-7 w-7 flex-none text-primary" />
         <span className="hidden text-xl font-bold lg:inline">SafeVault</span>
