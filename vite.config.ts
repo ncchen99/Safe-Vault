@@ -11,6 +11,11 @@ export default defineConfig({
   build: {
     target: 'es2022',
   },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2022',
+    },
+  },
   plugins: [
     react(),
     VitePWA({
@@ -44,7 +49,10 @@ export default defineConfig({
         // 安全：不快取任何 Firestore / Auth 回應，避免密文/憑證殘留於 SW 快取
         navigateFallbackDenylist: [/^\/__\//],
       },
-      devOptions: { enabled: true },
+      devOptions: {
+        enabled: true,
+        suppressWarnings: true,
+      },
     }),
   ],
   test: {

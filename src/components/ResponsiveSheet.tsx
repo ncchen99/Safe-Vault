@@ -7,6 +7,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useIsMobile } from '@/app/useMediaQuery';
+import { useBackButton } from '@/app/useBackButton';
 
 interface Props {
   open: boolean;
@@ -26,6 +27,9 @@ export function ResponsiveSheet({
 }: Props) {
   const isMobile = useIsMobile();
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // 手機返回鍵攔截：sheet 開啟時 push history state，按返回會關閉 sheet
+  useBackButton(open, onClose);
 
   useEffect(() => {
     if (!open) return;

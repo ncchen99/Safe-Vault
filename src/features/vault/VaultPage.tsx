@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -20,6 +20,7 @@ import { EntryDetail } from './EntryDetail';
 import { SortControl, type SortKey } from './SortControl';
 import { ImportPage } from '@/features/import/ImportPage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
+import { useBackButton } from '@/app/useBackButton';
 
 type View = 'list' | 'profile';
 
@@ -62,6 +63,10 @@ export function VaultPage() {
   const [editing, setEditing] = useState<ServiceEntry | undefined>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>(loadSort);
+
+  // 手機返回鍵：從 profile 頁返回主清單
+  const goBackToList = useCallback(() => setView('list'), []);
+  useBackButton(view === 'profile', goBackToList);
 
   function changeSort(key: SortKey) {
     setSort(key);
