@@ -59,7 +59,7 @@ export function UnlockVault() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[var(--app-height)] max-w-md flex-col justify-center px-5 py-10">
+    <div className="mx-auto flex min-h-[var(--app-content-height)] max-w-md flex-col justify-center px-5 py-10">
       <div className="mb-6 text-center">
         <LockClosedIcon className="mx-auto mb-3 h-12 w-12 text-primary" />
         <h1 className="text-2xl font-bold">解鎖金庫</h1>

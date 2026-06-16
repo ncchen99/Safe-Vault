@@ -27,7 +27,7 @@ export function App() {
   return (
     <>
       {status === 'loading' && (
-        <div className="flex min-h-[var(--app-height)] items-center justify-center">
+        <div className="flex min-h-[var(--app-content-height)] items-center justify-center">
           <span className="loading loading-spinner loading-lg text-primary" />
         </div>
       )}

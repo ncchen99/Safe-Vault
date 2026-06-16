@@ -100,7 +100,7 @@ export function VaultPage() {
   }
 
   return (
-    <div className="flex min-h-[var(--app-height)] flex-col md:flex-row" onClick={touch}>
+    <div className="flex min-h-[var(--app-content-height)] flex-col md:flex-row" onClick={touch}>
       {/* 側邊欄：平板僅 icon 細條，桌面展開為完整側欄 */}
       <DesktopSidebar
         mode={mode}
@@ -211,7 +211,7 @@ export function VaultPage() {
           </div>
 
           {/* 桌面右側欄：選取項目 → 顯示帳密明細；未選取 → 顯示金庫概況 */}
-          <aside className="sticky top-0 hidden h-[var(--app-height)] min-w-0 flex-1 flex-col bg-base-100 lg:flex lg:flex-[2]">
+          <aside className="sticky top-0 hidden h-[var(--app-content-height)] min-w-0 flex-1 flex-col bg-base-100 lg:flex lg:flex-[2]">
             {selected ? (
               <EntryDetail
                 key={selected.id}
@@ -261,7 +261,7 @@ function DesktopSidebar({
   onProfile: () => void;
 }) {
   return (
-    <aside className="sticky top-0 hidden h-[var(--app-height)] flex-none flex-col border-r border-base-300 bg-base-100 py-6 md:flex md:w-16 md:px-2 lg:w-64 lg:px-4">
+    <aside className="sticky top-0 hidden h-[var(--app-content-height)] flex-none flex-col border-r border-base-300 bg-base-100 py-6 md:flex md:w-16 md:px-2 lg:w-64 lg:px-4">
       <div className="mb-8 flex items-center gap-2 md:justify-center lg:justify-start lg:px-2">
         <ShieldCheckIcon className="h-7 w-7 flex-none text-primary" />
         <span className="hidden text-xl font-bold lg:inline">SafeVault</span>

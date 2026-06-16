@@ -6,6 +6,15 @@
   color-scheme: light dark;
   /* 由 useAppHeight 以 JS 量測的實際可視高度覆寫；100dvh 僅為 JS 載入前的後備值。 */
   --app-height: 100dvh;
+  /*
+   * 頁面實際可用高度 = 可視高度 − 上下安全區域。
+   * body 帶有 env(safe-area-inset-*) 的 padding（避開 iOS 狀態列／Home 指示條），
+   * 若整頁容器仍用完整的 --app-height，會比 body 內容區高出安全區域，導致整個畫面可捲動。
+   * 故扣除上下 inset，讓整頁容器恰好填滿可視區域而不溢出。
+   */
+  --app-content-height: calc(
+    var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  );
 }
 
 html {
