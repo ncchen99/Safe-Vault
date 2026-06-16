@@ -31,15 +31,23 @@ export function ResponsiveSheet({
   // 手機返回鍵攔截：sheet 開啟時 push history state，按返回會關閉 sheet
   useBackButton(open, onClose);
 
+  // 以 ref 持有最新 onClose，避免其 identity 變動觸發下方 effect 重跑。
+  // （父層常以 inline 函式傳入 onClose，每次 render 都是新參考。）
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // 只在「開啟那一刻」聚焦面板並掛上 Escape 監聽。若把 onClose 放進相依陣列，
+  // 父層每次 render（如輸入時 setState）都會使 effect 重跑並呼叫 focus()，
+  // 把焦點從正在輸入的 input 搶走 → 打一個字就 unfocus。
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     panelRef.current?.focus();
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
