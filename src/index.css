@@ -6,15 +6,6 @@
   color-scheme: light dark;
   /* 由 useAppHeight 以 JS 量測的實際可視高度覆寫；100dvh 僅為 JS 載入前的後備值。 */
   --app-height: 100dvh;
-  /*
-   * 頁面實際可用高度 = 可視高度 − 上下安全區域。
-   * body 帶有 env(safe-area-inset-*) 的 padding（避開 iOS 狀態列／Home 指示條），
-   * 若整頁容器仍用完整的 --app-height，會比 body 內容區高出安全區域，導致整個畫面可捲動。
-   * 故扣除上下 inset，讓整頁容器恰好填滿可視區域而不溢出。
-   */
-  --app-content-height: calc(
-    var(--app-height) - env(safe-area-inset-top) - env(safe-area-inset-bottom)
-  );
 }
 
 html {
@@ -28,9 +19,14 @@ html {
 body {
   min-height: 100%;
   @apply bg-base-200 text-base-content antialiased;
-  /* iOS 安全區域 */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right)
-    env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /*
+   * 只保留左右安全區域（橫向瀏海／圓角）。
+   * 上下狀態列／Home 指示條在 iOS 是疊在內容之上、整個畫面都是顯示區域，
+   * 因此不在此預留上下 padding——否則整頁容器（高度 = --app-height = 可視高度）
+   * 會被往下推，超出可視範圍而讓整個畫面可捲動。
+   */
+  padding-right: env(safe-area-inset-right);
+  padding-left: env(safe-area-inset-left);
 }
 
 #root {

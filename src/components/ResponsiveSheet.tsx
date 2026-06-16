@@ -101,7 +101,7 @@ export function ResponsiveSheet({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="flex max-h-[calc(var(--app-content-height)*0.9)] w-full max-w-md flex-col bg-base-100 shadow-xl outline-none"
+        className="flex max-h-[calc(var(--app-height)*0.9)] w-full max-w-md flex-col bg-base-100 shadow-xl outline-none"
       >
         {header}
         <div className="overflow-y-auto px-6 py-5">{children}</div>
