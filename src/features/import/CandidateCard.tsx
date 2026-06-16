@@ -46,10 +46,11 @@ export function CandidateCard({ candidate, included, onToggle, onChange }: Props
 
   return (
     <li className={`py-4 ${included ? '' : 'opacity-50'}`}>
-      <div className="mb-3 flex items-start gap-3">
+      {/* 整個標題列可點選切換是否匯入；checkbox 維持正常大小（不套 touch-target 放大） */}
+      <label className="mb-3 flex cursor-pointer items-start gap-3">
         <input
           type="checkbox"
-          className="checkbox checkbox-primary mt-1 touch-target"
+          className="checkbox checkbox-primary checkbox-sm mt-0.5 flex-none"
           checked={included}
           onChange={(e) => onToggle(e.target.checked)}
           aria-label="是否匯入此筆"
@@ -72,7 +73,7 @@ export function CandidateCard({ candidate, included, onToggle, onChange }: Props
             </p>
           )}
         </div>
-      </div>
+      </label>
 
       <div className="grid gap-2 pl-8">
         {FIELD_META.map(({ key, label, type }) => {

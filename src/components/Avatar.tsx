@@ -7,8 +7,6 @@ import { useAuthStore } from '@/store/authStore';
 
 interface Props {
   onClick: () => void;
-  /** true 時加上選取外框（桌面側邊欄停在個人頁時）。 */
-  active?: boolean;
 }
 
 function initials(name: string): string {
@@ -18,7 +16,7 @@ function initials(name: string): string {
   return trimmed[0]!.toUpperCase();
 }
 
-export function Avatar({ onClick, active = false }: Props) {
+export function Avatar({ onClick }: Props) {
   const user = useAuthStore((s) => s.user);
   const label = user?.displayName || user?.email || '';
   const text = label ? initials(label) : '';
@@ -27,9 +25,7 @@ export function Avatar({ onClick, active = false }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className={`btn btn-ghost btn-square btn-sm touch-target ${
-        active ? 'ring-2 ring-primary ring-offset-2 ring-offset-base-100' : ''
-      }`}
+      className="btn btn-ghost btn-square btn-sm touch-target"
       aria-label="個人設定"
       title="個人設定"
     >

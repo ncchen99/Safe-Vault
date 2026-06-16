@@ -39,7 +39,7 @@ export function Snackbar() {
       <button
         type="button"
         onClick={dismiss}
-        className="pointer-events-auto flex items-center gap-2 rounded-full bg-neutral px-4 py-3 text-sm font-medium text-neutral-content shadow-lg animate-[snackbar-in_180ms_ease-out]"
+        className="pointer-events-auto flex items-center gap-2 rounded-none bg-neutral px-4 py-3 text-sm font-medium text-neutral-content shadow-lg animate-[snackbar-in_180ms_ease-out]"
       >
         <Icon className={`h-5 w-5 ${tint}`} />
         {message}

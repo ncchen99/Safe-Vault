@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
 import { FingerPrintIcon, KeyIcon } from '@heroicons/react/24/outline';
 import { useVaultStore } from '@/store/vaultStore';
@@ -29,6 +29,22 @@ export function UnlockVault() {
       setBioBusy(false);
     }
   }
+
+  // 進入畫面時直接喚起 Passkey，不必先點按鈕（每次掛載僅自動嘗試一次；
+  // 失敗或取消後不重試，使用者仍可手動點「用指紋解鎖」）。
+  const autoTried = useRef(false);
+  useEffect(() => {
+    if (!canBio || autoTried.current) return;
+    autoTried.current = true;
+    void (async () => {
+      await onBio();
+      // 自動喚起若被瀏覽器擋下或使用者取消，不要一進畫面就跳紅字錯誤。
+      if (useVaultStore.getState().status !== 'unlocked') {
+        useVaultStore.setState({ error: null });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canBio]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

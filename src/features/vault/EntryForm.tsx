@@ -8,6 +8,7 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import type { CustomField, ServiceEntry } from '@/types/entry';
+import { AutoTextarea } from '@/components/AutoTextarea';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
 import { canonicalServiceName } from '@/icons/match';
 import { newId } from '@/lib/id';
@@ -239,8 +240,8 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
         </div>
 
         {(noteOpen || note) && (
-          <textarea
-            className="textarea textarea-bordered w-full text-sm touch-target"
+          <AutoTextarea
+            className="textarea textarea-bordered min-h-[3.5rem] w-full text-sm"
             rows={2}
             value={note}
             onChange={(e) => setNote(e.target.value)}

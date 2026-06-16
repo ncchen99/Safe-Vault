@@ -98,8 +98,10 @@ export function ImportPage({ open, onClose }: Props) {
         <div className="space-y-4">
           <p className="flex items-start gap-2 text-sm text-base-content/70">
             <ShieldCheckIcon className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-            貼上任意格式的帳密文字，於<strong className="mx-1">本機</strong>
-            解析後逐筆確認。內容不會離開此裝置。
+            <span>
+              貼上任意格式的帳密文字，於<strong className="mx-1">本機</strong>
+              解析後逐筆確認。內容不會離開此裝置。
+            </span>
           </p>
           <textarea
             className="textarea textarea-bordered h-56 w-full font-mono text-sm"

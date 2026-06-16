@@ -17,10 +17,33 @@ import { Avatar } from '@/components/Avatar';
 import { EntryRow } from './EntryRow';
 import { EntryForm } from './EntryForm';
 import { EntryDetail } from './EntryDetail';
+import { SortControl, type SortKey } from './SortControl';
 import { ImportPage } from '@/features/import/ImportPage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 
 type View = 'list' | 'profile';
+
+const SORT_STORAGE_KEY = 'vault.sort';
+
+function loadSort(): SortKey {
+  return localStorage.getItem(SORT_STORAGE_KEY) === 'name' ? 'name' : 'recent';
+}
+
+/** 依使用者選擇排序；name 用 localeCompare（繁中／英文皆合理），recent 用 updatedAt 由新到舊。 */
+function sortEntries(entries: ServiceEntry[], sort: SortKey): ServiceEntry[] {
+  const sorted = [...entries];
+  if (sort === 'name') {
+    sorted.sort((a, b) =>
+      a.service.localeCompare(b.service, 'zh-Hant', {
+        sensitivity: 'base',
+        numeric: true,
+      }),
+    );
+  } else {
+    sorted.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+  return sorted;
+}
 
 export function VaultPage() {
   const entries = useVaultStore((s) => s.entries);
@@ -38,11 +61,18 @@ export function VaultPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<ServiceEntry | undefined>();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortKey>(loadSort);
 
-  const results = useMemo(
-    () => searchEntries(query, entries).map((h) => h.entry),
-    [query, entries],
-  );
+  function changeSort(key: SortKey) {
+    setSort(key);
+    localStorage.setItem(SORT_STORAGE_KEY, key);
+  }
+
+  // 無查詢時依使用者選擇排序；有查詢時保留相關性排序（最符合的在前）。
+  const results = useMemo(() => {
+    const hits = searchEntries(query, entries).map((h) => h.entry);
+    return query.trim() ? hits : sortEntries(hits, sort);
+  }, [query, entries, sort]);
 
   // 由 id 取得目前選取項目；若已被刪除/不存在則右側顯示概況。
   const selected = useMemo(
@@ -73,7 +103,6 @@ export function VaultPage() {
         onNew={openNew}
         onImport={() => setImportOpen(true)}
         onProfile={() => setView('profile')}
-        profileActive={view === 'profile'}
       />
 
       {view === 'profile' ? (
@@ -83,25 +112,27 @@ export function VaultPage() {
       ) : (
         <>
           {/* 清單欄：桌面固定較窄寬度，留出右側給明細 */}
-          <div className="flex min-w-0 flex-1 flex-col lg:min-w-[20rem] lg:border-r lg:border-base-300">
-            {/* 手機頂部列（桌面/平板由側邊欄取代）：左切換主題、中標題、右頭像 */}
-            <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-base-300 bg-base-100/95 px-4 py-3 backdrop-blur md:hidden">
-              <button
-                className="btn btn-ghost btn-sm btn-circle touch-target"
-                onClick={toggle}
-                aria-label={mode === 'dark' ? '切換淺色' : '切換深色'}
-              >
-                {mode === 'dark' ? (
-                  <SunIcon className="h-5 w-5" />
-                ) : (
-                  <MoonIcon className="h-5 w-5" />
-                )}
-              </button>
-              <div className="flex flex-1 items-center justify-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-col lg:flex-[3] lg:border-r lg:border-base-300">
+            {/* 手機頂部列（桌面/平板由側邊欄取代）：左邊 Brand，右邊主題切換與頭像 */}
+            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-base-300 bg-base-100/95 px-4 py-3 backdrop-blur md:hidden">
+              <div className="flex items-center gap-2">
                 <ShieldCheckIcon className="h-6 w-6 text-primary" />
                 <h1 className="text-lg font-bold">SafeVault</h1>
               </div>
-              <Avatar onClick={() => setView('profile')} />
+              <div className="flex items-center gap-2">
+                <button
+                  className="btn btn-ghost btn-sm btn-circle touch-target"
+                  onClick={toggle}
+                  aria-label={mode === 'dark' ? '切換淺色' : '切換深色'}
+                >
+                  {mode === 'dark' ? (
+                    <SunIcon className="h-5 w-5" />
+                  ) : (
+                    <MoonIcon className="h-5 w-5" />
+                  )}
+                </button>
+                <Avatar onClick={() => setView('profile')} />
+              </div>
             </header>
 
             {/* 搜尋（與下方清單同寬、靠左對齊） */}
@@ -119,6 +150,13 @@ export function VaultPage() {
                 />
               </label>
             </div>
+
+            {/* 排序列：僅在未搜尋且有多筆時顯示（搜尋時以相關性排序） */}
+            {!query.trim() && results.length > 1 && (
+              <div className="flex items-center justify-end px-4 pt-2 md:px-6">
+                <SortControl value={sort} onChange={changeSort} />
+              </div>
+            )}
 
             {/* 清單：以分隔線取代卡片，外框與搜尋框等寬 */}
             <main className="flex-1 px-4 pb-28 pt-4 md:px-6 md:pb-8">
@@ -168,11 +206,12 @@ export function VaultPage() {
           </div>
 
           {/* 桌面右側欄：選取項目 → 顯示帳密明細；未選取 → 顯示金庫概況 */}
-          <aside className="sticky top-0 hidden h-dvh min-w-0 flex-1 lg:flex-shrink-0 flex-col bg-base-100 lg:flex">
+          <aside className="sticky top-0 hidden h-dvh min-w-0 flex-1 flex-col bg-base-100 lg:flex lg:flex-[2]">
             {selected ? (
               <EntryDetail
+                key={selected.id}
                 entry={selected}
-                onEdit={openEdit}
+                onSave={saveEntry}
                 onDelete={async (id) => {
                   await removeEntry(id);
                   setSelectedId(null);
@@ -209,14 +248,12 @@ function DesktopSidebar({
   onNew,
   onImport,
   onProfile,
-  profileActive,
 }: {
   mode: string;
   onToggleTheme: () => void;
   onNew: () => void;
   onImport: () => void;
   onProfile: () => void;
-  profileActive: boolean;
 }) {
   return (
     <aside className="sticky top-0 hidden h-dvh flex-none flex-col border-r border-base-300 bg-base-100 py-6 md:flex md:w-16 md:px-2 lg:w-64 lg:px-4">
@@ -261,7 +298,7 @@ function DesktopSidebar({
             {mode === 'dark' ? '淺色' : '深色'}
           </span>
         </button>
-        <Avatar onClick={onProfile} active={profileActive} />
+        <Avatar onClick={onProfile} />
       </div>
     </aside>
   );
@@ -277,7 +314,7 @@ function Overview({ entries }: { entries: ServiceEntry[] }) {
 
   return (
     <div className="flex h-full flex-col py-8">
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-8">
+      <div className="flex w-full max-w-md flex-1 flex-col gap-6 px-8">
         <div className="text-base-content/40">
           <ShieldCheckIcon className="mb-3 h-10 w-10" />
           <p className="text-sm">選擇左側項目即可在此檢視帳號與密碼。</p>
