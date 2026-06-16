@@ -40,40 +40,42 @@ export function EntryDetail({ entry, onEdit, onDelete, onClose }: Props) {
   return (
     <div className="flex h-full flex-col">
       {/* 標題列 */}
-      <div className="flex items-center gap-3 border-b border-base-300 px-6 py-4">
-        <ServiceIcon entry={entry} className="h-12 w-12" />
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-xl font-bold">{entry.service}</div>
-          {entry.url && (
-            <a
-              href={/^https?:\/\//.test(entry.url) ? entry.url : `https://${entry.url}`}
-              target="_blank"
-              rel="noreferrer"
-              className="truncate text-sm text-base-content/50 hover:underline"
-            >
-              {entry.url}
-            </a>
-          )}
+      <div className="border-b border-base-300 py-4">
+        <div className="mx-auto flex w-full max-w-xl items-center gap-3 px-6">
+          <ServiceIcon entry={entry} className="h-12 w-12" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xl font-bold">{entry.service}</div>
+            {entry.url && (
+              <a
+                href={/^https?:\/\//.test(entry.url) ? entry.url : `https://${entry.url}`}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-sm text-base-content/50 hover:underline"
+              >
+                {entry.url}
+              </a>
+            )}
+          </div>
+          <button
+            className="btn btn-ghost btn-sm gap-1 touch-target"
+            onClick={() => onEdit(entry)}
+          >
+            <PencilSquareIcon className="h-5 w-5" />
+            編輯
+          </button>
+          <button
+            className="btn btn-ghost btn-sm btn-circle touch-target"
+            onClick={onClose}
+            aria-label="關閉明細"
+          >
+            <XMarkIcon className="h-5 w-5" />
+          </button>
         </div>
-        <button
-          className="btn btn-ghost btn-sm gap-1 touch-target"
-          onClick={() => onEdit(entry)}
-        >
-          <PencilSquareIcon className="h-5 w-5" />
-          編輯
-        </button>
-        <button
-          className="btn btn-ghost btn-sm btn-circle touch-target"
-          onClick={onClose}
-          aria-label="關閉明細"
-        >
-          <XMarkIcon className="h-5 w-5" />
-        </button>
       </div>
 
       {/* 內容 */}
-      <div className="flex-1 overflow-y-auto px-6 py-5">
-        <div className="max-w-xl space-y-3">
+      <div className="flex-1 overflow-y-auto py-5">
+        <div className="mx-auto max-w-xl space-y-3 px-6">
           {cred?.username && (
             <FieldRow label="帳號" value={cred.username} copyLabel="帳號" />
           )}
@@ -107,19 +109,19 @@ export function EntryDetail({ entry, onEdit, onDelete, onClose }: Props) {
           {!cred?.username && !cred?.password && !cred?.fields?.length && (
             <p className="text-sm text-base-content/50">此項目尚未填寫帳號或密碼。</p>
           )}
-        </div>
 
-        <button
-          className="btn btn-ghost btn-sm mt-8 text-error"
-          onClick={async () => {
-            if (confirm(`確定要刪除「${entry.service}」？此動作無法復原。`)) {
-              await onDelete(entry.id);
-            }
-          }}
-        >
-          <TrashIcon className="h-4 w-4" />
-          刪除此項目
-        </button>
+          <button
+            className="btn btn-ghost btn-sm mt-8 text-error"
+            onClick={async () => {
+              if (confirm(`確定要刪除「${entry.service}」？此動作無法復原。`)) {
+                await onDelete(entry.id);
+              }
+            }}
+          >
+            <TrashIcon className="h-4 w-4" />
+            刪除此項目
+          </button>
+        </div>
       </div>
     </div>
   );

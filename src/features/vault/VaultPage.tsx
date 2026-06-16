@@ -83,7 +83,7 @@ export function VaultPage() {
       ) : (
         <>
           {/* 清單欄：桌面固定較窄寬度，留出右側給明細 */}
-          <div className="flex min-w-0 flex-1 flex-col lg:w-[24rem] lg:flex-none lg:border-r lg:border-base-300">
+          <div className="flex min-w-0 flex-1 flex-col lg:min-w-[20rem] lg:border-r lg:border-base-300">
             {/* 手機頂部列（桌面/平板由側邊欄取代）：左切換主題、中標題、右頭像 */}
             <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-base-300 bg-base-100/95 px-4 py-3 backdrop-blur md:hidden">
               <button
@@ -168,7 +168,7 @@ export function VaultPage() {
           </div>
 
           {/* 桌面右側欄：選取項目 → 顯示帳密明細；未選取 → 顯示金庫概況 */}
-          <aside className="sticky top-0 hidden h-dvh min-w-0 flex-1 flex-col bg-base-100 lg:flex">
+          <aside className="sticky top-0 hidden h-dvh min-w-0 flex-1 lg:flex-shrink-0 flex-col bg-base-100 lg:flex">
             {selected ? (
               <EntryDetail
                 entry={selected}
@@ -276,35 +276,37 @@ function Overview({ entries }: { entries: ServiceEntry[] }) {
   const lastSummary = useAuthStore((s) => s.lastSummary);
 
   return (
-    <div className="flex h-full flex-col gap-6 px-8 py-8">
-      <div className="text-base-content/40">
-        <ShieldCheckIcon className="mb-3 h-10 w-10" />
-        <p className="text-sm">選擇左側項目即可在此檢視帳號與密碼。</p>
-      </div>
-
-      <div>
-        <h3 className="mb-3 text-sm font-semibold text-base-content/60">概況</h3>
-        <div className="grid max-w-md grid-cols-2 gap-3">
-          <Stat label="項目總數" value={String(total)} />
-          <Stat label="含密碼" value={String(withPassword)} />
+    <div className="flex h-full flex-col py-8">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-8">
+        <div className="text-base-content/40">
+          <ShieldCheckIcon className="mb-3 h-10 w-10" />
+          <p className="text-sm">選擇左側項目即可在此檢視帳號與密碼。</p>
         </div>
-      </div>
 
-      <div className="max-w-md">
-        <h3 className="mb-2 text-sm font-semibold text-base-content/60">雲端備份</h3>
-        <p className="text-sm text-base-content/70">
-          {!enabled
-            ? '純本地模式，未啟用雲端同步。'
-            : user
-              ? lastSummary
-                ? `已連結，上次同步 ${lastSummary}。`
-                : '已連結雲端備份。'
-              : '尚未登入，資料僅保存在本機。'}
-        </p>
-      </div>
+        <div>
+          <h3 className="mb-3 text-sm font-semibold text-base-content/60">概況</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <Stat label="項目總數" value={String(total)} />
+            <Stat label="含密碼" value={String(withPassword)} />
+          </div>
+        </div>
 
-      <div className="mt-auto max-w-md border-t border-base-300 pt-4 text-xs leading-relaxed text-base-content/50">
-        所有密碼皆在本機端對端加密，雲端只存密文，無法解讀你的內容（零知識）。
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-base-content/60">雲端備份</h3>
+          <p className="text-sm text-base-content/70">
+            {!enabled
+              ? '純本地模式，未啟用雲端同步。'
+              : user
+                ? lastSummary
+                  ? `已連結，上次同步 ${lastSummary}。`
+                  : '已連結雲端備份。'
+                : '尚未登入，資料僅保存在本機。'}
+          </p>
+        </div>
+
+        <div className="mt-auto border-t border-base-300 pt-4 text-xs leading-relaxed text-base-content/50">
+          所有密碼皆在本機端對端加密，雲端只存密文，無法解讀你的內容（零知識）。
+        </div>
       </div>
     </div>
   );

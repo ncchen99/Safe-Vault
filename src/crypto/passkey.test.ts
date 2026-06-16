@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect } from 'vitest';
 import { derivePrfKey } from './passkey';
 import { generateVaultKey, wrapVaultKey, unwrapVaultKey } from './keyWrap';

@@ -2,7 +2,7 @@
  * 使用者頭像按鈕：點擊進入個人設定頁。
  * 已登入雲端同步時顯示帳號縮寫；否則顯示通用人像（純本地模式）。
  */
-import { UserCircleIcon } from '@heroicons/react/24/outline';
+import { UserIcon } from '@heroicons/react/24/outline';
 import { useAuthStore } from '@/store/authStore';
 
 interface Props {
@@ -27,7 +27,7 @@ export function Avatar({ onClick, active = false }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className={`btn btn-ghost btn-circle btn-sm touch-target ${
+      className={`btn btn-ghost btn-square btn-sm touch-target ${
         active ? 'ring-2 ring-primary ring-offset-2 ring-offset-base-100' : ''
       }`}
       aria-label="個人設定"
@@ -38,7 +38,7 @@ export function Avatar({ onClick, active = false }: Props) {
           {text}
         </span>
       ) : (
-        <UserCircleIcon className="h-7 w-7" />
+        <UserIcon className="h-7 w-7" />
       )}
     </button>
   );
