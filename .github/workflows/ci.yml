@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  VITE_FB_API_KEY: ${{ vars.VITE_FB_API_KEY }}
+  VITE_FB_AUTH_DOMAIN: ${{ vars.VITE_FB_AUTH_DOMAIN }}
+  VITE_FB_PROJECT_ID: ${{ vars.VITE_FB_PROJECT_ID }}
+  VITE_FB_STORAGE_BUCKET: ${{ vars.VITE_FB_STORAGE_BUCKET }}
+  VITE_FB_APP_ID: ${{ vars.VITE_FB_APP_ID }}
+  VITE_USE_EMULATORS: ${{ vars.VITE_USE_EMULATORS }}
+
 jobs:
   test:
     name: Typecheck, build, unit tests
