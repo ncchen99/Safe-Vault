@@ -1,7 +1,7 @@
 /**
  * 用復原碼解鎖 / 還原金庫。
- * 換新裝置（免密碼金庫、此裝置尚無指紋）時的主要解鎖方式：
- * 輸入復原碼即解出 VK 解鎖，不重設主密碼。解鎖後會建議在此裝置啟用指紋。
+ * 換新裝置（免密碼金庫、此裝置尚無 Passkey）時的主要解鎖方式：
+ * 輸入復原碼即解出 VK 解鎖，不重設主密碼。解鎖後會要求在此裝置設定 Passkey。
  */
 import { useState } from 'react';
 import { KeyIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
@@ -29,7 +29,7 @@ export function RestoreWithCode({ open, onClose }: Props) {
     try {
       await restoreWithCode(code);
       setCode('');
-      onClose(); // 成功後金庫解鎖；EnablePasskeyPrompt 會接著建議啟用指紋
+      onClose(); // 成功後金庫解鎖；EnablePasskeyPrompt 會接著要求設定 Passkey
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : '復原失敗');
     } finally {
@@ -52,7 +52,7 @@ export function RestoreWithCode({ open, onClose }: Props) {
           <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <span>
             輸入你建立金庫時保存的<strong>復原碼</strong>
-            即可在這台裝置解鎖。解鎖後可立即啟用指紋，下次免再輸入。
+            即可在這台裝置解鎖。解鎖後可立即設定 Passkey，下次免再輸入。
           </span>
         </div>
 

@@ -113,7 +113,7 @@ export async function unlockWithMasterPassword(
   extractable = false,
 ): Promise<CryptoKey> {
   if (!keyset.wrappedVK_byMEK) {
-    throw new Error('此金庫未設定主密碼，請改用指紋或復原碼');
+    throw new Error('此金庫未設定主密碼，請改用 Passkey 或復原碼');
   }
   const mek = await importWrappingKey(
     await deriveKeyMaterial(masterPassword, keyset.kdfParams),

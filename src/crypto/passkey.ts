@@ -1,7 +1,7 @@
 /**
- * Passkey 指紋解鎖（WebAuthn PRF）。
+ * Passkey 解鎖（WebAuthn PRF）。
  *
- * 原理：用 WebAuthn 的 PRF extension 取得一段「由生物辨識（Touch ID/指紋）解鎖、
+ * 原理：用 WebAuthn 的 PRF extension 取得一段「由裝置驗證（指紋／Face ID／裝置密碼）解鎖、
  * 綁定此裝置」的穩定秘密，經 HKDF 派生成 AES-GCM 金鑰，再用它**額外包裝一份 VK**
  * （`wrappedVK_byPRF`），與既有的主密碼 / 復原碼包裝並存。
  *
@@ -29,6 +29,18 @@ export interface PasskeyKeyset {
   prfSalt: string;
   /** 以 PRF 派生金鑰包裝的 VK。 */
   wrappedVK: WrappedKey;
+}
+
+/**
+ * 此裝置雖支援 Passkey，但無法用於解鎖金庫（瀏覽器未提供 PRF 擴充）。
+ * UI 可據此放行「略過、改用復原碼」的退路，避免使用者卡死在強制設定步驟。
+ */
+export class PasskeyUnsupportedError extends Error {
+  readonly code = 'PASSKEY_UNSUPPORTED';
+  constructor(message = '此裝置的 Passkey 無法用於解鎖金庫，請改用主密碼或復原碼') {
+    super(message);
+    this.name = 'PasskeyUnsupportedError';
+  }
 }
 
 /** 此環境是否可能支援 Passkey。 */
@@ -93,13 +105,16 @@ async function evaluatePrf(
       extensions: { prf: { eval: { first: ab(salt) } } } as AuthenticationExtensionsClientInputs,
     },
   })) as PublicKeyCredential | null;
-  if (!assertion) throw new Error('指紋驗證已取消');
+  if (!assertion) throw new Error('Passkey 驗證已取消');
   const results = (
     assertion.getClientExtensionResults() as {
       prf?: { results?: { first?: ArrayBuffer } };
     }
   ).prf?.results?.first;
-  if (!results) throw new Error('此裝置不支援 PRF 指紋解鎖，請改用主密碼');
+  if (!results)
+    throw new PasskeyUnsupportedError(
+      '此裝置的 Passkey 無法用於解鎖金庫（瀏覽器未提供 PRF），請改用主密碼或復原碼',
+    );
   return results;
 }
 
@@ -137,7 +152,9 @@ export async function enablePasskey(
 
   const ext = cred.getClientExtensionResults() as { prf?: { enabled?: boolean } };
   if (ext.prf?.enabled === false) {
-    throw new Error('此裝置的 Passkey 不支援 PRF（指紋解鎖），請改用主密碼');
+    throw new PasskeyUnsupportedError(
+      '此裝置的 Passkey 無法用於解鎖金庫（不支援 PRF），請改用主密碼或復原碼',
+    );
   }
 
   const credentialId = new Uint8Array(cred.rawId);

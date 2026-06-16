@@ -31,7 +31,7 @@ export function UnlockVault() {
   }
 
   // 進入畫面時直接喚起 Passkey，不必先點按鈕（每次掛載僅自動嘗試一次；
-  // 失敗或取消後不重試，使用者仍可手動點「用指紋解鎖」）。
+  // 失敗或取消後不重試，使用者仍可手動點「用 Passkey 解鎖」）。
   const autoTried = useRef(false);
   useEffect(() => {
     if (!canBio || autoTried.current) return;
@@ -65,7 +65,7 @@ export function UnlockVault() {
         <h1 className="text-2xl font-bold">解鎖金庫</h1>
         <p className="mt-2 text-sm text-base-content/70">
           {canBio
-            ? '用指紋解鎖本機金庫'
+            ? '用 Passkey 解鎖本機金庫'
             : hasMasterPassword
               ? '輸入主密碼以解密本機金庫'
               : '用復原碼在這台裝置還原金庫'}
@@ -85,7 +85,7 @@ export function UnlockVault() {
             ) : (
               <>
                 <FingerPrintIcon className="h-5 w-5" />
-                用指紋解鎖
+                用 Passkey 解鎖
               </>
             )}
           </button>

@@ -76,6 +76,20 @@ describe('mergeEntries', () => {
     expect(r.toPush.map((e) => e.id).sort()).toEqual(['conflict-1', 'f']);
   });
 
+  it('換裝置採用遠端條目（baseRev = rev）→ 首次同步不應產生衝突副本', () => {
+    // 回歸測試：tryAdoptRemoteVault 取回的遠端條目須標記 baseRev = rev，
+    // 否則 base 退回 0，雙方都被判為「改過」→ 每筆都產生衝突副本（全部重複一次）。
+    const remote = [
+      enc({ id: 'a', rev: 2, ciphertext: 'A' }),
+      enc({ id: 'b', rev: 5, ciphertext: 'B' }),
+    ];
+    const local = remote.map((e) => ({ ...e, baseRev: e.rev }));
+    const r = mergeEntries(local, remote, newId);
+    expect(r.conflicts).toHaveLength(0);
+    expect(r.toPush).toHaveLength(0);
+    expect(r.resolved).toHaveLength(2);
+  });
+
   it('本機刪除（墓碑）且遠端未變更 → 推送墓碑，遠端據此刪除', () => {
     const r = mergeEntries(
       [enc({ id: 'g', rev: 3, baseRev: 2, deleted: true, ciphertext: '', iv: '' })],

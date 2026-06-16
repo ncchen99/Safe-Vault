@@ -40,11 +40,11 @@ export type VaultStatus = 'loading' | 'no-vault' | 'locked' | 'unlocked';
 
 const AUTO_LOCK_MS = 5 * 60 * 1000;
 
-/** 啟用指紋需要可匯出 VK，但目前 session VK 不可匯出 → 需重新輸入主密碼驗證。 */
+/** 設定 Passkey 需要可匯出 VK，但目前 session VK 不可匯出 → 需重新輸入主密碼驗證。 */
 export class ReauthRequiredError extends Error {
   readonly code = 'REAUTH_REQUIRED';
   constructor() {
-    super('請重新輸入主密碼以啟用指紋');
+    super('請重新輸入主密碼以設定 Passkey');
     this.name = 'ReauthRequiredError';
   }
 }
@@ -62,8 +62,10 @@ interface VaultState {
   hasPasskey: boolean;
   /** 此金庫是否設有主密碼（免密碼金庫為 false）。 */
   hasMasterPassword: boolean;
-  /** 解鎖後建議在此裝置啟用指紋（例如用復原碼還原、或主密碼建立後）。 */
+  /** 解鎖後建議在此裝置設定 Passkey（例如用復原碼還原、或主密碼建立後）。 */
   suggestPasskey: boolean;
+  /** 一次性旗標：剛採用雲端金庫（換新裝置）→ 下次解鎖後強制設定 Passkey。 */
+  justAdopted: boolean;
 
   init: () => Promise<void>;
   create: (masterPassword: string) => Promise<void>;
@@ -92,6 +94,8 @@ interface VaultState {
     newPassword: string,
   ) => Promise<void>;
   syncWithRemote: (uid: string) => Promise<SyncOutcome>;
+  /** 一次性清理換裝置還原 bug 產生的內容相同副本；回傳刪除筆數。 */
+  dedupeConflictCopies: (uid: string) => Promise<number>;
   clearRecoveryCode: () => void;
 }
 
@@ -106,6 +110,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   hasPasskey: false,
   hasMasterPassword: false,
   suggestPasskey: false,
+  justAdopted: false,
 
   init: async () => {
     const meta = await getMeta();
@@ -189,7 +194,11 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       );
       await clearUnlockFailures();
       get().touch();
-      set({ vk, entries, status: 'unlocked' });
+      // 換新裝置（剛採用雲端金庫）以主密碼解鎖後，強制設定 Passkey；
+      // 同裝置日常解鎖不打擾（justAdopted 僅在採用時為 true，解鎖後即清除）。
+      const suggestPasskey =
+        get().justAdopted && get().passkeySupported && !get().hasPasskey;
+      set({ vk, entries, status: 'unlocked', suggestPasskey, justAdopted: false });
       syncBus.emitLocalChange(); // 解鎖後若已登入則拉取遠端 + 啟動即時同步
     } catch {
       // AES-GCM 驗證失敗 → 主密碼錯誤
@@ -211,7 +220,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     set({ error: null });
     const meta = await getMeta();
     if (!meta?.passkey) {
-      set({ error: '尚未啟用指紋解鎖' });
+      set({ error: '尚未啟用 Passkey 解鎖' });
       return;
     }
     try {
@@ -258,6 +267,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       entries,
       status: 'unlocked',
       suggestPasskey: get().passkeySupported && !get().hasPasskey,
+      justAdopted: false,
     });
     syncBus.emitLocalChange();
   },
@@ -283,11 +293,17 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       updatedAt: remoteMeta.updatedAt,
     });
     const entries = await fetchRemoteEntries(uid);
-    if (entries.length) await bulkPutEncrypted(entries);
+    // 採用遠端條目時必須標記 baseRev = rev（= 已與遠端同步於此 rev）。
+    // baseRev 是本機專用欄位、上傳時被剝除，故 fetchRemoteEntries 取回時皆為 undefined。
+    // 若直接寫入，首次同步會把每筆都判為「本機與遠端皆改過」→ 走衝突分支產生副本，
+    // 導致換裝置還原後所有條目被複製一份。設定 baseRev 後首次同步才不會誤判。
+    const adopted = entries.map((e) => ({ ...e, baseRev: e.rev }));
+    if (adopted.length) await bulkPutEncrypted(adopted);
     set({
       status: 'locked',
-      hasPasskey: false, // 新裝置尚未註冊本機指紋
+      hasPasskey: false, // 新裝置尚未註冊本機 Passkey
       hasMasterPassword: Boolean(remoteMeta.wrappedVK_byMEK),
+      justAdopted: true, // 新裝置：下次解鎖後強制設定 Passkey
     });
     return true;
   },
@@ -311,7 +327,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       try {
         wrapVk = await unlockWithMasterPassword(reauthPassword, meta, true);
       } catch {
-        throw new Error('主密碼錯誤，無法啟用指紋');
+        throw new Error('主密碼錯誤，無法設定 Passkey');
       }
     }
     const passkey = await cryptoEnablePasskey(wrapVk);
@@ -475,7 +491,44 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     );
     get().touch();
     set({ entries });
+
+    // 一次性自動去重：清掉換裝置還原 bug 留下的內容相同副本（並推送墓碑給其他裝置）。
+    // 全部清完後不再有 conflictOf 條目 → 後續同步自動略過，等同一次性、且跨裝置自癒。
+    await get().dedupeConflictCopies(uid);
     return outcome;
+  },
+
+  /**
+   * 清理「換裝置還原 bug」產生的內容相同副本：
+   * 只刪除 conflictOf 指向之原條目仍在、且實質內容完全相同者（真正衝突副本不動）。
+   * 刪除＝寫墓碑並同步，讓其他裝置一併移除。無此類副本時不做任何事（廉價略過）。
+   */
+  dedupeConflictCopies: async (uid) => {
+    const { vk } = get();
+    if (!vk) return 0;
+    const encrypted = await listLiveEntries();
+    // 無任何 conflictOf 條目 → 沒有可去重的副本（含已清理完畢）→ 直接略過，不解密。
+    if (!encrypted.some((e) => e.conflictOf)) return 0;
+
+    const { findDuplicateCopyIds } = await import('@/sync/dedup');
+    const candidates = await Promise.all(
+      encrypted.map(async (rec) => ({
+        id: rec.id,
+        conflictOf: rec.conflictOf,
+        content: await decryptEntry(rec, vk),
+      })),
+    );
+    const dupIds = findDuplicateCopyIds(candidates);
+    if (dupIds.length === 0) return 0;
+
+    const remove = new Set(dupIds);
+    for (const id of dupIds) await dbDelete(id); // 寫墓碑（保留刪除標記以跨裝置傳播）
+    set({ entries: get().entries.filter((e) => !remove.has(e.id)) });
+
+    // 立即把墓碑推送到遠端，讓其他裝置同步移除重複。
+    const { syncNow } = await import('@/sync/sync');
+    await syncNow(uid);
+    return dupIds.length;
   },
 
   clearRecoveryCode: () => set({ lastRecoveryCode: null }),

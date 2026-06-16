@@ -3,9 +3,9 @@
  *
  * 預設路徑（零知識、免主密碼）：
  *   導覽 → Google 登入並啟用雲端同步 →
- *     · 雲端已有金庫（換裝置）→ 採用之 → 轉解鎖頁，用復原碼/指紋還原
- *     · 全新使用者 → 用指紋（Passkey）建立金庫，完全不需主密碼
- *   不支援指紋或使用者選擇時，才退回「主密碼」建立。
+ *     · 雲端已有金庫（換裝置）→ 採用之 → 轉解鎖頁，用復原碼/Passkey 還原
+ *     · 全新使用者 → 用 Passkey 建立金庫，完全不需主密碼
+ *   不支援 Passkey 或使用者選擇時，才退回「主密碼」建立。
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -83,7 +83,7 @@ export function SetupFlow() {
     );
   }
 
-  // 主密碼建立（明確選擇，或裝置不支援指紋）→ 用 CreateVault 全屏表單。
+  // 主密碼建立（明確選擇，或裝置不支援 Passkey）→ 用 CreateVault 全屏表單。
   if (phase === 'master' || (phase === 'new' && !passkeySupported)) {
     return <CreateVault />;
   }
@@ -103,8 +103,8 @@ export function SetupFlow() {
     } catch (e) {
       setErr(
         e instanceof Error
-          ? `指紋建立未完成：${e.message}`
-          : '指紋建立未完成',
+          ? `Passkey 建立未完成：${e.message}`
+          : 'Passkey 建立未完成',
       );
     } finally {
       setBusy(false);
@@ -122,8 +122,8 @@ export function SetupFlow() {
           {phase === 'choose'
             ? '用 Google 登入以在多裝置同步。雲端只存密文，無法解讀你的密碼（零知識）。'
             : passkeySupported
-              ? '用這台裝置的指紋建立金庫，免設、免記主密碼。'
-              : '此裝置不支援指紋，請設定主密碼來保護金庫。'}
+              ? '用 Passkey 建立金庫，免設、免記主密碼（指紋、Face ID 或裝置密碼皆可）。'
+              : '此裝置不支援 Passkey，請設定主密碼來保護金庫。'}
         </p>
       </div>
 
@@ -170,7 +170,7 @@ export function SetupFlow() {
             ) : (
               <>
                 <FingerPrintIcon className="h-5 w-5" />
-                用指紋建立金庫
+                用 Passkey 建立金庫
               </>
             )}
           </button>

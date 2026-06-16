@@ -36,7 +36,7 @@ export function App() {
       {/* 建立金庫後一次性顯示復原碼 */}
       <RecoveryKitModal />
 
-      {/* 解鎖後建議在此裝置啟用指紋 */}
+      {/* 換裝置 / 復原後強制在此裝置設定 Passkey（不支援時可略過） */}
       <EnablePasskeyPrompt />
 
       {/* PWA 安裝橫幅（可安裝時才出現） */}

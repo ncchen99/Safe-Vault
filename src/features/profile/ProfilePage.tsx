@@ -1,6 +1,6 @@
 /**
- * 個人設定頁：集中管理帳號 / 備份（雲端同步）、安全（指紋、主密碼）與工作階段。
- * 取代舊版散落在頂部工具列的鎖頭 / 指紋 / 雲端圖示。
+ * 個人設定頁：集中管理帳號 / 備份（雲端同步）、安全（Passkey、主密碼）與工作階段。
+ * 取代舊版散落在頂部工具列的鎖頭 / Passkey / 雲端圖示。
  */
 import { useState } from 'react';
 import {
@@ -54,24 +54,24 @@ export function ProfilePage({ onBack }: Props) {
     setBioBusy(true);
     try {
       if (hasPasskey) {
-        if (confirm('要停用指紋解鎖嗎？之後改用主密碼解鎖。')) await disablePasskey();
+        if (confirm('要停用 Passkey 解鎖嗎？之後改用主密碼解鎖。')) await disablePasskey();
       } else {
         try {
-          await enablePasskey(); // 觸發系統指紋/Face 註冊
+          await enablePasskey(); // 觸發系統 Passkey 驗證（指紋／Face ID／裝置密碼）
         } catch (e) {
           // 日常解鎖的 VK 不可匯出，無法直接包裝 → 需再次驗證主密碼後重試。
           if (e instanceof Error && (e as { code?: string }).code === 'REAUTH_REQUIRED') {
-            const pw = prompt('為保護金鑰，請再次輸入主密碼以啟用指紋解鎖');
+            const pw = prompt('為保護金鑰，請再次輸入主密碼以設定 Passkey 解鎖');
             if (!pw) return;
             await enablePasskey(pw);
           } else {
             throw e;
           }
         }
-        toast('已啟用指紋解鎖');
+        toast('已啟用 Passkey 解鎖');
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : '指紋設定失敗', 'error');
+      toast(e instanceof Error ? e.message : 'Passkey 設定失敗', 'error');
     } finally {
       setBioBusy(false);
     }
@@ -196,9 +196,11 @@ export function ProfilePage({ onBack }: Props) {
                 <div className="flex items-center gap-3 px-4 py-4">
                   <FingerPrintIcon className="h-5 w-5 flex-none" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium">指紋解鎖</div>
+                    <div className="font-medium">Passkey 解鎖</div>
                     <div className="text-sm text-base-content/60">
-                      {hasPasskey ? '已在此裝置啟用' : '用指紋 / Face 快速解鎖'}
+                      {hasPasskey
+                        ? '已在此裝置啟用'
+                        : '指紋、Face ID 或裝置密碼皆可'}
                     </div>
                   </div>
                   <input
@@ -207,7 +209,7 @@ export function ProfilePage({ onBack }: Props) {
                     checked={hasPasskey}
                     disabled={bioBusy}
                     onChange={toggleBio}
-                    aria-label="指紋解鎖"
+                    aria-label="Passkey 解鎖"
                   />
                 </div>
                 <div className="border-t border-base-300" />
