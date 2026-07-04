@@ -35,6 +35,7 @@ import {
   setBoundUid,
 } from '@/db/repo';
 import type { SyncOutcome } from '@/sync/sync';
+import type { VaultMeta } from '@/db/dexie';
 
 export type VaultStatus = 'loading' | 'no-vault' | 'locked' | 'unlocked';
 
@@ -66,13 +67,15 @@ interface VaultState {
   suggestPasskey: boolean;
   /** 一次性旗標：剛採用雲端金庫（換新裝置）→ 下次解鎖後強制設定 Passkey。 */
   justAdopted: boolean;
+  /** 是否已經嘗試過自動指紋解鎖。 */
+  autoUnlockTried: boolean;
 
   init: () => Promise<void>;
   create: (masterPassword: string) => Promise<void>;
   /** 免密碼建立：產生金庫 → 註冊指紋 Passkey（觸發 Touch ID）→ 解鎖。 */
   createWithPasskey: () => Promise<void>;
   unlock: (masterPassword: string) => Promise<void>;
-  unlockWithPasskey: () => Promise<void>;
+  unlockWithPasskey: (cachedMeta?: VaultMeta) => Promise<void>;
   /** 用復原碼解鎖（換裝置還原；不重設主密碼）。 */
   restoreWithCode: (recoveryCode: string) => Promise<void>;
   /**
@@ -111,13 +114,31 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   hasMasterPassword: false,
   suggestPasskey: false,
   justAdopted: false,
+  autoUnlockTried: false,
 
   init: async () => {
     const meta = await getMeta();
+    const hasPasskey = Boolean(meta?.passkey);
+    const hasMasterPassword = Boolean(meta?.wrappedVK_byMEK);
+    const passkeySupported = get().passkeySupported;
+    const canBio = passkeySupported && hasPasskey;
+
+    if (meta && canBio) {
+      // 狀態保持 loading，直接嘗試 passkey
+      await get().unlockWithPasskey(meta);
+      if (get().status === 'unlocked') {
+        // 解鎖成功，標記已嘗試並直接結束，畫面會直接由 loading 變 unlocked
+        set({ autoUnlockTried: true });
+        return;
+      }
+    }
+
     set({
       status: meta ? 'locked' : 'no-vault',
-      hasPasskey: Boolean(meta?.passkey),
-      hasMasterPassword: Boolean(meta?.wrappedVK_byMEK),
+      hasPasskey,
+      hasMasterPassword,
+      autoUnlockTried: true, // 失敗、取消或不支援，皆標記為已嘗試，防止畫面掛載後重複彈窗
+      error: null, // 清除自動嘗試可能殘留的取消錯誤
     });
   },
 
@@ -216,9 +237,9 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   },
 
   /** 指紋解鎖：以 Passkey（PRF）解出 VK，等同主密碼解鎖但用生物辨識。 */
-  unlockWithPasskey: async () => {
+  unlockWithPasskey: async (cachedMeta) => {
     set({ error: null });
-    const meta = await getMeta();
+    const meta = cachedMeta || (await getMeta());
     if (!meta?.passkey) {
       set({ error: '尚未啟用 Passkey 解鎖' });
       return;
