@@ -122,6 +122,10 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const hasMasterPassword = Boolean(meta?.wrappedVK_byMEK);
     const passkeySupported = get().passkeySupported;
     const canBio = passkeySupported && hasPasskey;
+    // 能力旗標必須在自動解鎖前寫入：成功路徑會提早 return，若漏掉這步，
+    // 設定頁的 Passkey toggle 會誤顯示未啟用，且自動上鎖後的解鎖畫面
+    // 也會因 hasPasskey=false 而不提供指紋解鎖、只剩復原碼。
+    set({ hasPasskey, hasMasterPassword });
 
     if (meta && canBio) {
       // 狀態保持 loading，直接嘗試 passkey
@@ -135,8 +139,6 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
     set({
       status: meta ? 'locked' : 'no-vault',
-      hasPasskey,
-      hasMasterPassword,
       autoUnlockTried: true, // 失敗、取消或不支援，皆標記為已嘗試，防止畫面掛載後重複彈窗
       error: null, // 清除自動嘗試可能殘留的取消錯誤
     });
@@ -373,6 +375,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       status: 'locked',
       error: null,
       autoLockTimer: null,
+      // 重新上鎖後允許解鎖畫面再自動喚起一次 Passkey（閒置逾時/手動鎖定皆然）
+      autoUnlockTried: false,
     });
   },
 

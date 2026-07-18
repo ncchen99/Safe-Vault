@@ -4,6 +4,7 @@
  */
 import { useState } from 'react';
 import {
+  ArrowDownTrayIcon,
   ArrowLeftIcon,
   ArrowPathIcon,
   ArrowRightOnRectangleIcon,
@@ -18,6 +19,9 @@ import { useVaultStore } from '@/store/vaultStore';
 import { useAuthStore } from '@/store/authStore';
 import { ForgotPassword } from '@/features/auth/ForgotPassword';
 import { toast } from '@/store/toastStore';
+import { getMeta } from '@/db/repo';
+import { unlockVKWithPasskey } from '@/crypto/passkey';
+import { unlockWithMasterPassword } from '@/crypto/vaultSetup';
 
 interface Props {
   onBack: () => void;
@@ -45,6 +49,7 @@ export function ProfilePage({ onBack }: Props) {
   const [bioBusy, setBioBusy] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [wiping, setWiping] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const syncing = syncState === 'syncing';
   const signingIn = syncState === 'signing-in';
@@ -78,6 +83,65 @@ export function ProfilePage({ onBack }: Props) {
   }
 
   const displayName = user?.displayName || user?.email || '本機使用者';
+
+  /**
+   * 匯出前再驗證一次身分：有 Passkey → 觸發系統生物辨識（並實際解出 VK 證明本人）；
+   * 否則退回主密碼驗證。回傳 false 表示使用者取消；驗證失敗則擲錯。
+   */
+  async function reverifyForExport(): Promise<boolean> {
+    const meta = await getMeta();
+    if (!meta) throw new Error('找不到本機金庫');
+    if (passkeySupported && meta.passkey) {
+      await unlockVKWithPasskey(meta.passkey);
+      return true;
+    }
+    if (meta.wrappedVK_byMEK) {
+      const pw = prompt('為保護資料，請再次輸入主密碼以匯出');
+      if (!pw) return false;
+      try {
+        await unlockWithMasterPassword(pw, meta);
+      } catch {
+        throw new Error('主密碼錯誤，已取消匯出');
+      }
+      return true;
+    }
+    throw new Error('此裝置無 Passkey 或主密碼可驗證身分，無法匯出');
+  }
+
+  async function exportAllEntries() {
+    if (exporting || entries.length === 0) return;
+    const ok = confirm(
+      `要匯出全部 ${entries.length} 筆條目嗎？匯出檔為未加密的明文 JSON，請妥善保管、用畢即刪。`,
+    );
+    if (!ok) return;
+    setExporting(true);
+    try {
+      if (!(await reverifyForExport())) return; // 使用者取消
+      const payload = {
+        app: 'SafeVault',
+        format: 'safevault-export',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        entries,
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: 'application/json',
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `safevault-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast(`已匯出 ${entries.length} 筆條目`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : '匯出失敗', 'error');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function wipeAllEntries() {
     if (wiping || entries.length === 0) return;
@@ -242,6 +306,32 @@ export function ProfilePage({ onBack }: Props) {
           >
             <LockClosedIcon className="h-5 w-5 flex-none" />
             <span className="font-medium">鎖定金庫</span>
+          </button>
+        </section>
+
+        {/* 資料 */}
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-base-content/60">
+            資料
+          </h2>
+          <button
+            className="flex w-full items-center gap-3 border border-base-300 bg-base-100 px-4 py-4 text-left hover:bg-base-200 touch-target disabled:opacity-50"
+            onClick={() => void exportAllEntries()}
+            disabled={exporting || entries.length === 0}
+          >
+            {exporting ? (
+              <span className="loading loading-spinner loading-sm" />
+            ) : (
+              <ArrowDownTrayIcon className="h-5 w-5 flex-none" />
+            )}
+            <span>
+              <span className="block font-medium">
+                匯出所有條目（{entries.length} 筆）
+              </span>
+              <span className="block text-sm text-base-content/60">
+                需再次通過 Passkey／主密碼驗證；匯出為未加密 JSON
+              </span>
+            </span>
           </button>
         </section>
 
