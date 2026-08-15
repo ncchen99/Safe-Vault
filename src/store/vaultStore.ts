@@ -67,8 +67,6 @@ interface VaultState {
   suggestPasskey: boolean;
   /** 一次性旗標：剛採用雲端金庫（換新裝置）→ 下次解鎖後強制設定 Passkey。 */
   justAdopted: boolean;
-  /** 是否已經嘗試過自動指紋解鎖。 */
-  autoUnlockTried: boolean;
 
   init: () => Promise<void>;
   create: (masterPassword: string) => Promise<void>;
@@ -114,7 +112,6 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   hasMasterPassword: false,
   suggestPasskey: false,
   justAdopted: false,
-  autoUnlockTried: false,
 
   init: async () => {
     const meta = await getMeta();
@@ -131,15 +128,13 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       // 狀態保持 loading，直接嘗試 passkey
       await get().unlockWithPasskey(meta);
       if (get().status === 'unlocked') {
-        // 解鎖成功，標記已嘗試並直接結束，畫面會直接由 loading 變 unlocked
-        set({ autoUnlockTried: true });
+        // 解鎖成功，畫面會直接由 loading 變 unlocked
         return;
       }
     }
 
     set({
       status: meta ? 'locked' : 'no-vault',
-      autoUnlockTried: true, // 失敗、取消或不支援，皆標記為已嘗試，防止畫面掛載後重複彈窗
       error: null, // 清除自動嘗試可能殘留的取消錯誤
     });
   },
@@ -375,8 +370,6 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       status: 'locked',
       error: null,
       autoLockTimer: null,
-      // 重新上鎖後允許解鎖畫面再自動喚起一次 Passkey（閒置逾時/手動鎖定皆然）
-      autoUnlockTried: false,
     });
   },
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { LockClosedIcon } from '@heroicons/react/24/solid';
 import { FingerPrintIcon, KeyIcon } from '@heroicons/react/24/outline';
 import { useVaultStore } from '@/store/vaultStore';
@@ -12,7 +12,6 @@ export function UnlockVault() {
   const hasPasskey = useVaultStore((s) => s.hasPasskey);
   const hasMasterPassword = useVaultStore((s) => s.hasMasterPassword);
   const error = useVaultStore((s) => s.error);
-  const autoUnlockTried = useVaultStore((s) => s.autoUnlockTried);
   const [pw, setPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [bioBusy, setBioBusy] = useState(false);
@@ -30,36 +29,6 @@ export function UnlockVault() {
       setBioBusy(false);
     }
   }
-
-  // 進入畫面時直接喚起 Passkey，不必先點按鈕（每次上鎖僅自動嘗試一次；
-  // 失敗或取消後不重試，使用者仍可手動點「用 Passkey 解鎖」）。
-  // 閒置自動上鎖常發生在分頁位於背景時：此時喚起 WebAuthn 會被瀏覽器擋下
-  // 並白白消耗掉自動嘗試，因此背景時先等待、回到前景再喚起。
-  useEffect(() => {
-    if (!canBio || autoUnlockTried) return;
-    const tryAuto = () => {
-      useVaultStore.setState({ autoUnlockTried: true });
-      void (async () => {
-        await onBio();
-        // 自動喚起若被瀏覽器擋下或使用者取消，不要一進畫面就跳紅字錯誤。
-        if (useVaultStore.getState().status !== 'unlocked') {
-          useVaultStore.setState({ error: null });
-        }
-      })();
-    };
-    if (document.visibilityState === 'visible') {
-      tryAuto();
-      return;
-    }
-    const onVisible = () => {
-      if (document.visibilityState !== 'visible') return;
-      document.removeEventListener('visibilitychange', onVisible);
-      tryAuto();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canBio, autoUnlockTried]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
