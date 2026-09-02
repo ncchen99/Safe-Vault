@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   CheckIcon,
   ChevronDownIcon,
+  ClipboardDocumentIcon,
   EyeIcon,
   EyeSlashIcon,
   PlusIcon,
@@ -10,7 +11,13 @@ import {
 import type { CustomField, ServiceEntry } from '@/types/entry';
 import { AutoTextarea } from '@/components/AutoTextarea';
 import { ResponsiveSheet } from '@/components/ResponsiveSheet';
+import {
+  InputActionButton,
+  InputActions,
+  inputActionPad,
+} from '@/components/InputActions';
 import { canonicalServiceName } from '@/icons/match';
+import { copyToClipboard } from '@/lib/clipboard';
 import { newId } from '@/lib/id';
 
 interface Props {
@@ -33,7 +40,6 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
   const [tags, setTags] = useState((initial?.tags ?? []).join(', '));
 
   const [showPw, setShowPw] = useState(false);
-  const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [noteOpen, setNoteOpen] = useState(Boolean(cred0?.note));
   const [advOpen, setAdvOpen] = useState(Boolean(initial?.url || initial?.tags?.length));
   const [busy, setBusy] = useState(false);
@@ -135,81 +141,86 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
 
         <label className="form-control">
           <span className="label-text mb-1">帳號</span>
-          <input
-            className="input input-bordered touch-target"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="ID / Email / 電話皆可"
-            autoComplete="off"
-          />
+          <div className="relative">
+            <input
+              className={`input input-bordered w-full touch-target ${inputActionPad.md[1]}`}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="ID / Email / 電話皆可"
+              autoComplete="off"
+            />
+            <InputActions>
+              <InputActionButton
+                label="複製帳號"
+                onClick={() => void copyToClipboard(username, '帳號')}
+              >
+                <ClipboardDocumentIcon className="h-4 w-4" />
+              </InputActionButton>
+            </InputActions>
+          </div>
         </label>
 
         <label className="form-control">
           <span className="label-text mb-1">密碼</span>
           <div className="relative">
             <input
-              className="input input-bordered w-full pr-10 touch-target"
+              className={`input input-bordered w-full touch-target ${inputActionPad.md[2]}`}
               type={showPw ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="密碼"
               autoComplete="off"
             />
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs btn-circle absolute right-1 inset-y-0 my-auto"
-              onClick={() => setShowPw((v) => !v)}
-              aria-label={showPw ? '隱藏密碼' : '顯示密碼'}
-            >
-              {showPw ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-            </button>
+            {/* 順序：顯示／隱藏在左、複製在右 */}
+            <InputActions>
+              <InputActionButton
+                label={showPw ? '隱藏密碼' : '顯示密碼'}
+                onClick={() => setShowPw((v) => !v)}
+              >
+                {showPw ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
+              </InputActionButton>
+              <InputActionButton
+                label="複製密碼"
+                onClick={() => void copyToClipboard(password, '密碼')}
+              >
+                <ClipboardDocumentIcon className="h-4 w-4" />
+              </InputActionButton>
+            </InputActions>
           </div>
         </label>
 
-        {/* 自訂欄位：理財密碼 / 卡片密碼 / 電話 / 代號… */}
+        {/* 自訂欄位：理財密碼 / 卡片密碼 / 電話 / 代號…（一律明碼，僅密碼欄需遮蔽） */}
         {fields.map((f) => (
-          <div key={f.id} className="flex items-center gap-1.5">
+          <div key={f.id} className="flex items-center gap-1">
+            {/* 手機一列要放下：標籤 + 值(+ 複製) + 刪除 → 標籤固定窄欄，值吃剩餘寬度 */}
             <input
-              className="input input-bordered input-sm w-28 flex-none touch-target"
+              className="input input-bordered input-sm w-24 flex-none touch-target sm:w-28"
               value={f.label}
               onChange={(e) => updateField(f.id, { label: e.target.value })}
               placeholder="標籤"
               autoComplete="off"
             />
-            <div className="relative flex-1">
+            <div className="relative min-w-0 flex-1">
               <input
-                className="input input-bordered input-sm w-full pr-8 touch-target"
-                type={f.secret && !reveal[f.id] ? 'password' : 'text'}
+                className={`input input-bordered input-sm w-full touch-target ${inputActionPad.sm[1]}`}
                 value={f.value}
                 onChange={(e) => updateField(f.id, { value: e.target.value })}
                 placeholder="值"
                 autoComplete="off"
               />
-              {f.secret && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-xs btn-circle absolute right-0.5 inset-y-0 my-auto"
-                  onClick={() => setReveal((s) => ({ ...s, [f.id]: !s[f.id] }))}
-                  aria-label={reveal[f.id] ? '隱藏' : '顯示'}
+              <InputActions compact>
+                <InputActionButton
+                  compact
+                  label="複製"
+                  onClick={() => void copyToClipboard(f.value, f.label || '欄位')}
                 >
-                  {reveal[f.id] ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-                </button>
-              )}
+                  <ClipboardDocumentIcon className="h-4 w-4" />
+                </InputActionButton>
+              </InputActions>
             </div>
             <button
               type="button"
-              className={`btn btn-ghost btn-xs btn-square touch-target ${
-                f.secret ? 'text-primary' : 'text-base-content/40'
-              }`}
-              onClick={() => updateField(f.id, { secret: !f.secret })}
-              aria-label={f.secret ? '取消機密' : '標記為機密'}
-              title={f.secret ? '機密（遮蔽）' : '一般'}
-            >
-              {f.secret ? <EyeSlashIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs btn-square touch-target"
+              className="btn btn-ghost btn-sm btn-square flex-none touch-target text-base-content/60"
               onClick={() => setFields((fs) => fs.filter((x) => x.id !== f.id))}
               aria-label="移除此欄位"
             >
