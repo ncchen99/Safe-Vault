@@ -6,6 +6,7 @@ import {
   EyeIcon,
   EyeSlashIcon,
   PlusIcon,
+  SparklesIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import type { CustomField, ServiceEntry } from '@/types/entry';
@@ -18,6 +19,7 @@ import {
 } from '@/components/InputActions';
 import { canonicalServiceName } from '@/icons/match';
 import { copyToClipboard } from '@/lib/clipboard';
+import { generatePassword } from '@/lib/passwordGenerator';
 import { newId } from '@/lib/id';
 
 interface Props {
@@ -52,6 +54,12 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
   function normalizeService() {
     const canon = canonicalServiceName(service);
     if (canon && canon.name !== service.trim()) setService(canon.name);
+  }
+
+  function handleGeneratePassword() {
+    const next = generatePassword(10);
+    setPassword(next);
+    setShowPw(true);
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -164,15 +172,23 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
           <span className="label-text mb-1">密碼</span>
           <div className="relative">
             <input
-              className={`input input-bordered w-full touch-target ${inputActionPad.md[2]}`}
+              className={`input input-bordered w-full touch-target ${inputActionPad.md[password ? 2 : 3]}`}
               type={showPw ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="密碼"
               autoComplete="off"
             />
-            {/* 順序：顯示／隱藏在左、複製在右 */}
+            {/* 順序：產生最左、顯示／隱藏在中間、複製在右 */}
             <InputActions>
+              {!password && (
+                <InputActionButton
+                  label="產生密碼"
+                  onClick={handleGeneratePassword}
+                >
+                  <SparklesIcon className="h-4 w-4" />
+                </InputActionButton>
+              )}
               <InputActionButton
                 label={showPw ? '隱藏密碼' : '顯示密碼'}
                 onClick={() => setShowPw((v) => !v)}

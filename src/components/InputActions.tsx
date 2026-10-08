@@ -13,9 +13,9 @@ import type { ReactNode } from 'react';
 /** 依動作鈕數量所需的輸入框右內距（與下方尺寸常數對應）。 */
 export const inputActionPad = {
   /** 一般輸入框（btn-sm 32px 鈕，右留白 8px）。 */
-  md: ['', 'pr-11', 'pr-20'],
+  md: ['', 'pr-11', 'pr-20', 'pr-28'],
   /** 密集列的 input-sm（btn-xs 24px 鈕，右留白 4px）。 */
-  sm: ['', 'pr-9', 'pr-[3.75rem]'],
+  sm: ['', 'pr-9', 'pr-[3.75rem]', 'pr-[5.5rem]'],
 } as const;
 
 export function InputActions({
