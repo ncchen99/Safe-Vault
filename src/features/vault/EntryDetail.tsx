@@ -2,7 +2,7 @@
  * 桌面版右側明細：點清單列箭頭後，在右側空白區顯示該服務的帳密資訊。
  * 檢視與編輯整合在同一處——以帶框輸入框呈現，一眼可知可編輯；變更後去抖自動儲存。
  */
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   ClipboardDocumentIcon,
   EyeIcon,
@@ -23,6 +23,7 @@ import {
 import { copyToClipboard } from '@/lib/clipboard';
 import { generatePassword } from '@/lib/passwordGenerator';
 import { newId } from '@/lib/id';
+import { useAutoSave } from './useAutoSave';
 
 interface Props {
   entry: ServiceEntry;
@@ -71,19 +72,9 @@ export function EntryDetail({ entry, onSave, onDelete, onClose }: Props) {
   }
 
   // 變更偵測：序列化草稿，與上次已存內容比對，避免無謂寫入。
+  // 去抖自動儲存；關閉明細或金庫上鎖前也會立即寫入。
   const snapshot = JSON.stringify({ service, url, username, password, note, tags, fields });
-  const lastSaved = useRef(snapshot);
-
-  // 去抖自動儲存：任何欄位變動後 600ms 無新變更即寫入。
-  useEffect(() => {
-    if (snapshot === lastSaved.current) return;
-    const t = setTimeout(() => {
-      lastSaved.current = snapshot;
-      void onSave(buildEntry());
-    }, 600);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot]);
+  const { discard } = useAutoSave(snapshot, () => onSave(buildEntry()));
 
   function updateField(id: string, patch: Partial<CustomField>) {
     setFields((fs) => fs.map((f) => (f.id === id ? { ...f, ...patch } : f)));
@@ -268,6 +259,7 @@ export function EntryDetail({ entry, onSave, onDelete, onClose }: Props) {
               className="btn btn-ghost btn-sm gap-1 text-error"
               onClick={async () => {
                 if (confirm(`確定要刪除「${entry.service}」？此動作無法復原。`)) {
+                  discard();
                   await onDelete(entry.id);
                 }
               }}

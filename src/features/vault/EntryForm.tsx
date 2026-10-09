@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   CheckIcon,
   ChevronDownIcon,
@@ -21,6 +21,10 @@ import { canonicalServiceName } from '@/icons/match';
 import { copyToClipboard } from '@/lib/clipboard';
 import { generatePassword } from '@/lib/passwordGenerator';
 import { newId } from '@/lib/id';
+import { useAutoSave } from './useAutoSave';
+
+/** 新增時尚未填服務名稱就自動儲存所用的暫名。 */
+export const UNTITLED_SERVICE = '未命名項目';
 
 interface Props {
   open: boolean;
@@ -45,6 +49,15 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
   const [noteOpen, setNoteOpen] = useState(Boolean(cred0?.note));
   const [advOpen, setAdvOpen] = useState(Boolean(initial?.url || initial?.tags?.length));
   const [busy, setBusy] = useState(false);
+  // 新增的條目在第一次自動儲存後即存在於金庫 → 提供刪除（等同捨棄）。
+  const [savedOnce, setSavedOnce] = useState(Boolean(initial));
+
+  // id 在開啟表單時就固定：自動儲存多次都寫入同一筆，而不是每次新增一筆。
+  const ids = useRef({
+    entry: initial?.id ?? newId(),
+    cred: cred0?.id ?? newId(),
+    createdAt: initial?.createdAt ?? Date.now(),
+  });
 
   function updateField(id: string, patch: Partial<CustomField>) {
     setFields((fs) => fs.map((f) => (f.id === id ? { ...f, ...patch } : f)));
@@ -62,15 +75,10 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
     setShowPw(true);
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!service.trim() || busy) return;
-    setBusy(true);
-    const now = Date.now();
-
+  function buildEntry(): ServiceEntry {
     const raw = service.trim();
     const canon = canonicalServiceName(raw);
-    const name = canon?.name ?? raw;
+    const name = canon?.name ?? (raw || UNTITLED_SERVICE);
     const aliases = [...(initial?.aliases ?? [])];
     if (canon && canon.name !== raw && !aliases.includes(raw)) aliases.push(raw);
 
@@ -78,8 +86,8 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
       .map((f) => ({ ...f, label: f.label.trim(), value: f.value.trim() }))
       .filter((f) => f.label || f.value);
 
-    const entry: ServiceEntry = {
-      id: initial?.id ?? newId(),
+    return {
+      id: ids.current.entry,
       service: name,
       aliases,
       url: url.trim() || undefined,
@@ -89,7 +97,7 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
         .filter(Boolean),
       credentials: [
         {
-          id: cred0?.id ?? newId(),
+          id: ids.current.cred,
           username: username.trim() || undefined,
           password: password || undefined,
           otp: cred0?.otp,
@@ -97,11 +105,34 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
           fields: cleanFields.length ? cleanFields : undefined,
         },
       ],
-      createdAt: initial?.createdAt ?? now,
-      updatedAt: now,
+      createdAt: ids.current.createdAt,
+      updatedAt: Date.now(),
     };
+  }
+
+  // 自動儲存：開始輸入後去抖寫入；關閉表單、金庫上鎖前也會立即寫入，
+  // 不必記得按儲存，閒置自動上鎖也不會讓剛輸入的內容消失。
+  const snapshot = JSON.stringify({ service, username, password, note, fields, url, tags });
+  const hasContent =
+    Boolean(initial) ||
+    [service, username, password, note, url, tags].some((v) => v.trim()) ||
+    fields.some((f) => f.label.trim() || f.value.trim());
+  const { flush, discard } = useAutoSave(
+    snapshot,
+    async () => {
+      await onSave(buildEntry());
+      setSavedOnce(true);
+    },
+    hasContent,
+  );
+
+  /** 「完成」：立即寫入剩餘變更後關閉。 */
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
     try {
-      await onSave(entry);
+      await flush();
       onClose();
     } finally {
       setBusy(false);
@@ -113,14 +144,14 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
       type="submit"
       form="entry-form"
       className="btn btn-primary btn-sm gap-1 touch-target"
-      disabled={!service.trim() || busy}
+      disabled={busy}
     >
       {busy ? (
         <span className="loading loading-spinner loading-sm" />
       ) : (
         <>
           <CheckIcon className="h-5 w-5" />
-          儲存
+          完成
         </>
       )}
     </button>
@@ -135,7 +166,7 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
     >
       <form id="entry-form" onSubmit={onSubmit} className="space-y-4">
         <label className="form-control">
-          <span className="label-text mb-1">服務名稱 *</span>
+          <span className="label-text mb-1">服務名稱</span>
           <input
             className="input input-bordered touch-target"
             value={service}
@@ -143,7 +174,6 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
             onBlur={normalizeService}
             placeholder="例如 Facebook（可輸入 FB、臉書、Gmail）"
             autoFocus
-            required
           />
         </label>
 
@@ -314,13 +344,19 @@ export function EntryForm({ open, initial, onClose, onSave, onDelete }: Props) {
           )}
         </div>
 
-        {initial && onDelete && (
+        <p className="text-center text-xs text-base-content/50">
+          變更會自動儲存
+        </p>
+
+        {savedOnce && onDelete && (
           <button
             type="button"
             className="btn btn-ghost btn-sm w-full text-error"
             onClick={async () => {
-              if (confirm(`確定要刪除「${initial.service}」？此動作無法復原。`)) {
-                await onDelete(initial.id);
+              const label = initial?.service ?? (service.trim() || UNTITLED_SERVICE);
+              if (confirm(`確定要刪除「${label}」？此動作無法復原。`)) {
+                discard();
+                await onDelete(ids.current.entry);
                 onClose();
               }
             }}

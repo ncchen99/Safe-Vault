@@ -42,6 +42,30 @@ export type VaultStatus = 'loading' | 'no-vault' | 'locked' | 'unlocked';
 const AUTO_LOCK_MS = 5 * 60 * 1000;
 
 /** 設定 Passkey 需要可匯出 VK，但目前 session VK 不可匯出 → 需重新輸入主密碼驗證。 */
+/**
+ * 金庫頁面的 UI 狀態（只含 id 與頁面類型，不含任何明文）。
+ * 存在 store 而非元件內：上鎖會卸載 VaultPage，解鎖後據此回到原本的頁面。
+ */
+export interface VaultUiState {
+  view: 'list' | 'profile';
+  /** 桌面右側明細目前選取的條目。 */
+  selectedId: string | null;
+  /** 表單（新增/編輯）是否開啟。 */
+  formOpen: boolean;
+  /** 表單對應的條目 id；新增中且尚未自動儲存時為 null。 */
+  formEntryId: string | null;
+}
+
+const INITIAL_UI: VaultUiState = {
+  view: 'list',
+  selectedId: null,
+  formOpen: false,
+  formEntryId: null,
+};
+
+/** 上鎖前要先執行的儲存動作（編輯中的草稿），由表單註冊。 */
+const flushers = new Set<() => Promise<void>>();
+
 export class ReauthRequiredError extends Error {
   readonly code = 'REAUTH_REQUIRED';
   constructor() {
@@ -67,6 +91,7 @@ interface VaultState {
   suggestPasskey: boolean;
   /** 一次性旗標：剛採用雲端金庫（換新裝置）→ 下次解鎖後強制設定 Passkey。 */
   justAdopted: boolean;
+  ui: VaultUiState;
 
   init: () => Promise<void>;
   create: (masterPassword: string) => Promise<void>;
@@ -85,8 +110,12 @@ interface VaultState {
   enablePasskey: (reauthPassword?: string) => Promise<void>;
   disablePasskey: () => Promise<void>;
   dismissPasskeySuggestion: () => void;
-  lock: () => void;
+  /** 上鎖：先儲存編輯中的草稿，再清除金鑰與明文。 */
+  lock: () => Promise<void>;
   touch: () => void;
+  setUi: (patch: Partial<VaultUiState>) => void;
+  /** 註冊上鎖前的儲存動作；回傳取消註冊函式。 */
+  registerFlush: (fn: () => Promise<void>) => () => void;
   saveEntry: (entry: ServiceEntry) => Promise<void>;
   saveMany: (entries: ServiceEntry[]) => Promise<void>;
   removeEntry: (id: string) => Promise<void>;
@@ -112,6 +141,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   hasMasterPassword: false,
   suggestPasskey: false,
   justAdopted: false,
+  ui: INITIAL_UI,
 
   init: async () => {
     const meta = await getMeta();
@@ -361,7 +391,12 @@ export const useVaultStore = create<VaultState>((set, get) => ({
 
   dismissPasskeySuggestion: () => set({ suggestPasskey: false }),
 
-  lock: () => {
+  lock: async () => {
+    // VK 仍在記憶體時先把草稿寫入（加密後存檔），避免上鎖後未儲存的輸入遺失。
+    // 個別失敗不阻擋上鎖。
+    await Promise.allSettled([...flushers].map((fn) => fn()));
+    if (get().status !== 'unlocked') return;
+    // 寫入草稿會經 saveEntry → touch() 重設計時器，故在 flush 之後才清除。
     const { autoLockTimer } = get();
     if (autoLockTimer) clearTimeout(autoLockTimer);
     set({
@@ -376,8 +411,17 @@ export const useVaultStore = create<VaultState>((set, get) => ({
   touch: () => {
     const { autoLockTimer } = get();
     if (autoLockTimer) clearTimeout(autoLockTimer);
-    const timer = setTimeout(() => get().lock(), AUTO_LOCK_MS);
+    const timer = setTimeout(() => void get().lock(), AUTO_LOCK_MS);
     set({ autoLockTimer: timer });
+  },
+
+  setUi: (patch) => set({ ui: { ...get().ui, ...patch } }),
+
+  registerFlush: (fn) => {
+    flushers.add(fn);
+    return () => {
+      flushers.delete(fn);
+    };
   },
 
   saveEntry: async (entry) => {

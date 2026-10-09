@@ -22,8 +22,6 @@ import { ImportPage } from '@/features/import/ImportPage';
 import { ProfilePage } from '@/features/profile/ProfilePage';
 import { useBackButton } from '@/app/useBackButton';
 
-type View = 'list' | 'profile';
-
 const SORT_STORAGE_KEY = 'vault.sort';
 
 function loadSort(): SortKey {
@@ -51,21 +49,29 @@ export function VaultPage() {
   const saveEntry = useVaultStore((s) => s.saveEntry);
   const removeEntry = useVaultStore((s) => s.removeEntry);
   const touch = useVaultStore((s) => s.touch);
+  const ui = useVaultStore((s) => s.ui);
+  const setUi = useVaultStore((s) => s.setUi);
   const { mode, toggle } = useTheme();
 
   // 桌面（≥1024px）才有右側明細欄；平板 / 手機點箭頭仍沿用全頁表單。
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
-  const [view, setView] = useState<View>('list');
+  // 頁面 / 選取 / 表單狀態放在 store：上鎖會卸載本頁，解鎖後據此回到原本的畫面。
+  const { view, selectedId, formOpen, formEntryId } = ui;
+  const setView = (v: typeof view) => setUi({ view: v });
+  const setSelectedId = (id: string | null) => setUi({ selectedId: id });
   const [query, setQuery] = useState('');
-  const [formOpen, setFormOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [editing, setEditing] = useState<ServiceEntry | undefined>();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sort, setSort] = useState<SortKey>(loadSort);
 
+  // 表單的初始內容：開啟當下的條目快照（之後的自動儲存不應重設表單）。
+  // 解鎖後重新掛載時，依 formEntryId 從金庫找回條目 → 回到原本編輯的那一筆。
+  const [editing, setEditing] = useState<ServiceEntry | undefined>(() =>
+    formEntryId ? entries.find((e) => e.id === formEntryId) : undefined,
+  );
+
   // 手機返回鍵：從 profile 頁返回主清單
-  const goBackToList = useCallback(() => setView('list'), []);
+  const goBackToList = useCallback(() => setUi({ view: 'list' }), [setUi]);
   useBackButton(view === 'profile', goBackToList);
 
   function changeSort(key: SortKey) {
@@ -87,11 +93,19 @@ export function VaultPage() {
 
   function openNew() {
     setEditing(undefined);
-    setFormOpen(true);
+    setUi({ formOpen: true, formEntryId: null });
   }
   function openEdit(entry: ServiceEntry) {
     setEditing(entry);
-    setFormOpen(true);
+    setUi({ formOpen: true, formEntryId: entry.id });
+  }
+  function closeForm() {
+    setUi({ formOpen: false, formEntryId: null });
+  }
+  /** 表單自動儲存：記下條目 id，上鎖後解鎖才能回到同一筆（新增的也一樣）。 */
+  async function saveFromForm(entry: ServiceEntry) {
+    await saveEntry(entry);
+    if (useVaultStore.getState().ui.formOpen) setUi({ formEntryId: entry.id });
   }
   /** 點清單列箭頭：桌面 → 右側明細；平板/手機 → 全頁表單。 */
   function openEntry(entry: ServiceEntry) {
@@ -102,7 +116,9 @@ export function VaultPage() {
   return (
     <div
       className="flex min-h-[var(--app-content-height)] flex-col md:h-[var(--app-content-height)] md:flex-row md:overflow-hidden"
+      // 輸入也算活動：避免打字打到一半被閒置自動上鎖
       onClick={touch}
+      onKeyDown={touch}
     >
       {/* 側邊欄：平板僅 icon 細條，桌面展開為完整側欄 */}
       <DesktopSidebar
@@ -239,8 +255,8 @@ export function VaultPage() {
         <EntryForm
           open
           initial={editing}
-          onClose={() => setFormOpen(false)}
-          onSave={saveEntry}
+          onClose={closeForm}
+          onSave={saveFromForm}
           onDelete={removeEntry}
         />
       )}

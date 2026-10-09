@@ -29,6 +29,7 @@ interface Props {
 
 export function ProfilePage({ onBack }: Props) {
   const lock = useVaultStore((s) => s.lock);
+  const setUi = useVaultStore((s) => s.setUi);
   const passkeySupported = useVaultStore((s) => s.passkeySupported);
   const hasPasskey = useVaultStore((s) => s.hasPasskey);
   const hasMasterPassword = useVaultStore((s) => s.hasMasterPassword);
@@ -302,7 +303,11 @@ export function ProfilePage({ onBack }: Props) {
         <section>
           <button
             className="flex w-full items-center gap-3 border border-base-300 bg-base-100 px-4 py-4 text-left hover:bg-base-200 touch-target"
-            onClick={lock}
+            onClick={() => {
+              // 主動上鎖：解鎖後回到主清單，而不是停在設定頁
+              setUi({ view: 'list' });
+              void lock();
+            }}
           >
             <LockClosedIcon className="h-5 w-5 flex-none" />
             <span className="font-medium">鎖定金庫</span>
