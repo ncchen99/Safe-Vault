@@ -93,6 +93,13 @@ export async function setBoundUid(uid: string): Promise<void> {
   await db.meta.update('self', { boundUid: uid });
 }
 
+/** 記錄增量同步進度（本機專用欄位，絕不上傳）。 */
+export async function updateSyncState(
+  state: Pick<VaultMeta, 'syncWatermark' | 'lastFullSyncAt'>,
+): Promise<void> {
+  await db.meta.update('self', state);
+}
+
 /**
  * 依連續失敗次數計算鎖定毫秒數（漸增退避，抵抗離線暴力破解）。
  * 前 2 次不鎖；之後 5s → 30s → 1m → 5m，最高 5 分鐘。

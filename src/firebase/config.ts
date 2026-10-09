@@ -13,6 +13,12 @@ export const firebaseConfig: FirebaseOptions = {
   appId: import.meta.env.VITE_FB_APP_ID,
 };
 
+/**
+ * App Check（reCAPTCHA Enterprise）網站金鑰，公開值。
+ * 設定後 Firestore 請求會附上 App Check 權杖，只有本站發出的請求能通過（防 API 濫用）。
+ */
+export const appCheckSiteKey: string | undefined = import.meta.env.VITE_FB_APPCHECK_SITE_KEY;
+
 /** 是否連 Firebase Emulator Suite（本機開發） */
 export const useEmulators = import.meta.env.VITE_USE_EMULATORS === 'true';
 

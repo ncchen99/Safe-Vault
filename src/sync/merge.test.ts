@@ -142,3 +142,31 @@ describe('mergeMeta', () => {
     expect(r.meta.vaultRev).toBe(5);
   });
 });
+
+describe('mergeEntries（增量同步 partial）', () => {
+  it('遠端未回傳且本機未變更 → 保留、不推送', () => {
+    const r = mergeEntries([enc({ id: 'p1', rev: 3, baseRev: 3 })], [], newId, {
+      partial: true,
+    });
+    expect(r.toPush).toHaveLength(0);
+    expect(r.resolved).toEqual([enc({ id: 'p1', rev: 3, baseRev: 3 })]);
+  });
+
+  it('遠端未回傳但本機有未同步修改 → 推送', () => {
+    const r = mergeEntries([enc({ id: 'p2', rev: 4, baseRev: 3 })], [], newId, {
+      partial: true,
+    });
+    expect(r.toPush.map((e) => e.id)).toEqual(['p2']);
+    expect(r.resolved[0].baseRev).toBe(4);
+  });
+
+  it('從未同步過的本機條目 → 推送', () => {
+    const r = mergeEntries([enc({ id: 'p3', rev: 1 })], [], newId, { partial: true });
+    expect(r.toPush.map((e) => e.id)).toEqual(['p3']);
+  });
+
+  it('完整同步時，遠端缺少的已同步條目仍推送（維持既有行為）', () => {
+    const r = mergeEntries([enc({ id: 'p4', rev: 3, baseRev: 3 })], [], newId);
+    expect(r.toPush.map((e) => e.id)).toEqual(['p4']);
+  });
+});

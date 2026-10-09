@@ -9,11 +9,12 @@ import {
   bulkPutEncrypted,
   replaceMeta,
   gcTombstones,
+  updateSyncState,
 } from '@/db/repo';
 import { mergeEntries, mergeMeta } from './merge';
 import {
   deleteRemoteEntry,
-  fetchRemoteEntries,
+  fetchRemoteEntriesPage,
   fetchRemoteMeta,
   pushRemoteEntries,
   pushRemoteMeta,
@@ -21,6 +22,9 @@ import {
 } from './remote';
 import type { VaultMeta } from '@/db/dexie';
 import type { EncryptedEntry } from '@/types/entry';
+
+/** 每隔這麼久做一次完整拉取，校正增量同步可能的遺漏（例如舊版客戶端寫入）。 */
+const FULL_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 export interface SyncOutcome {
   pushed: number;
@@ -61,12 +65,18 @@ export async function syncNow(
     await replaceMeta(applyRemoteMeta(localMeta, metaMerge.meta));
   }
 
-  // 2) 條目合併
-  const [local, remote] = await Promise.all([
+  // 2) 條目合併：有水位時只拉取之後變更的條目（增量），否則/定期拉取全部。
+  const startedAt = Date.now();
+  const watermark = localMeta.syncWatermark;
+  const full =
+    watermark === undefined ||
+    startedAt - (localMeta.lastFullSyncAt ?? 0) > FULL_SYNC_INTERVAL_MS;
+  const [local, page] = await Promise.all([
     listEncryptedEntries(),
-    fetchRemoteEntries(uid),
+    fetchRemoteEntriesPage(uid, full ? undefined : watermark),
   ]);
-  const merged = mergeEntries(local, remote, newId);
+  const remote = page.entries;
+  const merged = mergeEntries(local, remote, newId, { partial: !full });
   let { resolved, toPush } = merged;
   const { conflicts } = merged;
 
@@ -89,6 +99,13 @@ export async function syncNow(
   // 墓碑 GC：清除已傳播 30 天以上的刪除標記（本機 + 遠端），避免無限增長。
   const collected = await gcTombstones();
   for (const id of collected) await deleteRemoteEntry(uid, id);
+
+  // 全部完成才推進水位：中途失敗時下次會重新取回同一段變更。
+  // 遠端尚無任何帶時間戳的條目時記為 1：之後的增量查詢會取回所有新寫入者。
+  await updateSyncState({
+    syncWatermark: Math.max(watermark ?? 0, page.maxServerTime ?? 0, 1),
+    ...(full ? { lastFullSyncAt: startedAt } : {}),
+  });
 
   const pulled = countPulled(local, resolved);
   return { pushed: toPush.length, pulled, conflicts: conflicts.length };

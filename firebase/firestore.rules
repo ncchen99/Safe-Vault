@@ -9,6 +9,17 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid;
     }
 
+    // updatedAt 由客戶端時鐘產生、用於 Last-Write-Wins。容許合理時鐘誤差，
+    // 但拒絕遠在未來的時間戳（否則該版本會永遠贏得衝突）。
+    function plausibleClientTime(t) {
+      return t is int && t <= request.time.toMillis() + 86400000;
+    }
+
+    // 條目 id 一律為 crypto.randomUUID()（含衝突副本）；限制格式以免任意長字串當 id。
+    function isEntryId(id) {
+      return id.matches('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$');
+    }
+
     match /users/{uid} {
       // meta 文件：kdfParams / wrappedVK_byMEK / wrappedVK_byRK / vaultRev
       allow read: if signedInAs(uid);
@@ -19,9 +30,11 @@ service cloud.firestore {
              ['kdfParams', 'wrappedVK_byRK', 'vaultRev', 'updatedAt'])
         && request.resource.data.kdfParams is map
         && request.resource.data.wrappedVK_byRK is map
+        && (!('wrappedVK_byMEK' in request.resource.data)
+            || request.resource.data.wrappedVK_byMEK is map)
         && request.resource.data.vaultRev is int
         && request.resource.data.vaultRev >= 0
-        && request.resource.data.updatedAt is int
+        && plausibleClientTime(request.resource.data.updatedAt)
         // #6 vaultRev 單調不遞減：禁止把金鑰包裝回滾到舊版本（DoS / 弱密碼替換）。
         && (resource == null
             || request.resource.data.vaultRev >= resource.data.vaultRev);
@@ -30,19 +43,30 @@ service cloud.firestore {
         allow read, delete: if signedInAs(uid);
         // #5 欄位型別/長度驗證：杜絕負數 rev、非字串密文、超大 payload 耗盡儲存。
         allow create, update: if signedInAs(uid)
+          && isEntryId(entryId)
           && request.resource.data.keys().hasOnly(
-               ['ciphertext', 'iv', 'rev', 'updatedAt', 'conflictOf', 'deleted'])
+               ['ciphertext', 'iv', 'rev', 'updatedAt', 'serverUpdatedAt',
+                'conflictOf', 'deleted'])
+          // #8 伺服器時間戳：必須等於本次請求時間，增量同步據此查詢變更（不受客戶端時鐘影響）。
+          && request.resource.data.serverUpdatedAt == request.time
           && request.resource.data.ciphertext is string
-          && request.resource.data.ciphertext.size() < 1048576
+          // 256 KiB：單筆條目密文通常只有數 KB；原先 1 MiB 已超過 Firestore 欄位
+          // 上限（~1 MiB），規則實際上從未生效。
+          && request.resource.data.ciphertext.size() <= 262144
           && request.resource.data.iv is string
           && request.resource.data.iv.size() < 100
           && request.resource.data.rev is int
           && request.resource.data.rev > 0
-          && request.resource.data.updatedAt is int
+          && plausibleClientTime(request.resource.data.updatedAt)
           && (!('conflictOf' in request.resource.data)
-              || request.resource.data.conflictOf is string)
+              || (request.resource.data.conflictOf is string
+                  && isEntryId(request.resource.data.conflictOf)))
           && (!('deleted' in request.resource.data)
-              || request.resource.data.deleted is bool);
+              || request.resource.data.deleted is bool)
+          // #7 rev 單調不遞減：兩台裝置幾乎同時同步時，較晚送達但基於舊版本的推送
+          // （rev 較小）會被拒絕，而不是靜默覆蓋另一台剛推上的修改（lost update）。
+          // 被拒的一方下次同步會重新合併（必要時產生衝突副本）。持平允許重送。
+          && (resource == null || request.resource.data.rev >= resource.data.rev);
       }
     }
 

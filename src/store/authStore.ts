@@ -146,7 +146,11 @@ async function startRealtime(get: () => AuthState): Promise<void> {
   const { user } = get();
   if (!user || unsubRealtime) return;
   const { subscribeRemote } = await import('@/sync/remote');
-  unsubRealtime = subscribeRemote(user.uid, ({ fromSelf }) => {
+  const { getMeta } = await import('@/db/repo');
+  // 只訂閱同步水位（伺服器時間）之後的變更；尚無水位時退回本機時間。
+  const since = (await getMeta())?.syncWatermark ?? Date.now();
+  if (unsubRealtime || !get().user) return; // await 期間已訂閱或已登出
+  unsubRealtime = subscribeRemote(user.uid, since, ({ fromSelf }) => {
     // 略過本裝置自己造成的回音；只對來自他處的變更觸發同步
     if (fromSelf) return;
     get().scheduleSync();

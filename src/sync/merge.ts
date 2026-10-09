@@ -24,10 +24,19 @@ function newer(a: EncryptedEntry, b: EncryptedEntry): EncryptedEntry {
   return a.rev >= b.rev ? a : b;
 }
 
+export interface MergeOptions {
+  /**
+   * 增量同步：remote 只含「自上次同步後有變更」的條目，而非完整集合。
+   * 此時「只在本機」不代表遠端沒有，而是遠端未變 → 只在本機有未同步修改時才推送。
+   */
+  partial?: boolean;
+}
+
 export function mergeEntries(
   local: EncryptedEntry[],
   remote: EncryptedEntry[],
   newId: () => string,
+  { partial = false }: MergeOptions = {},
 ): MergeResult {
   const localById = new Map(local.map((e) => [e.id, e]));
   const remoteById = new Map(remote.map((e) => [e.id, e]));
@@ -41,6 +50,11 @@ export function mergeEntries(
     const L = localById.get(id);
     const R = remoteById.get(id);
 
+    // 增量同步且遠端此筆未變：本機有未同步修改（或從未同步）才上傳
+    if (L && !R && partial && L.baseRev !== undefined && L.rev <= L.baseRev) {
+      resolved.push(L);
+      continue;
+    }
     // 只在本機 → 上傳
     if (L && !R) {
       const synced = { ...L, baseRev: L.rev };
